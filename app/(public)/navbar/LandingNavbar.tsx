@@ -124,29 +124,31 @@ export function LandingNavbar() {
 
 
   return (
-    <header className="px-4 lg:px-6 h-14 flex items-center shadow-sm fixed top-0 left-0 right-0 bg-background z-50">
-      <Link href="/" className="flex items-center justify-center">
-        {/* Ícone trocado para o de 'ShieldCheck' para bater com a sidebar */}
-        <ShieldCheck className="h-6 w-6 text-primary" />
-        <span className="sr-only">GrandTech Manutenção</span>
-        <span className="font-bold text-lg ml-2">GrandTech Man.</span>
+    <header className="px-4 lg:px-6 h-16 flex items-center shadow-sm fixed top-0 left-0 right-0 bg-background z-50">
+      {/* Logo */}
+      <Link href="/" className="flex items-center space-x-2">
+        <div className="flex items-center justify-center">
+          <img
+            src="https://grandtechsistemas.com.br/assets/logo.png"
+            width={100}
+            height={100}
+            alt="grandtech"
+            className="rounded-lg object-cover"
+          />
+        </div>
       </Link>
 
+      {/* Texto centralizado */}
+      <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <h1 className="text-3xl font-bold tracking-tighter">
+          GrandTech
+        </h1>
+      </div>
+
       {/* --- 6. NAV CONDICIONAL --- */}
-      <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
+      <div className="ml-auto flex gap-4 sm:gap-6 items-center">
         {token ? (
-          // --- ESTADO LOGADO ---
           <>
-            <Link
-              href="/#features"
-              className="text-sm font-medium hover:underline underline-offset-4 hidden sm:block" // Oculta em mobile
-            >
-              Recursos
-            </Link>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/dashboard">Acessar Painel</Link>
-            </Button>
-            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -182,26 +184,13 @@ export function LandingNavbar() {
           </>
 
         ) : (
-          // --- ESTADO DESLOGADO (O seu original) ---
           <>
-            <Link
-              href="#features"
-              className="text-sm font-medium hover:underline underline-offset-4"
-            >
-              Recursos
-            </Link>
-            <Link
-              href="#how-it-works"
-              className="text-sm font-medium hover:underline underline-offset-4"
-            >
-              Como Funciona
-            </Link>
-            <Button asChild>
-              <Link href="/login">Login</Link>
+            <Button size="sm" asChild>
+              <Link href="/login">Acessar conta</Link>
             </Button>
           </>
         )}
-      </nav>
+      </div>
     </header>
   );
 }

@@ -36,7 +36,7 @@ export default function RootLayout({
         </AuthProvider>
         
         {/* Local para os pop-ups de notificação (toast) */}
-        <Toaster position="top-right" />
+        <Toaster position="bottom-left" />
       </body>
     </html>
   );
