@@ -15,22 +15,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // <-- NOVO
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // <-- NOVO
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Users, 
   Wrench, 
   Package,
   Building,
-  UserCheck // <-- NOVO
+  UserCheck
 } from "lucide-react";
 import Link from "next/link";
-// Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer já estão no seu
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
-// --- DADOS MOCKADOS ATUALIZADOS ---
+// --- DADOS MOCKADOS PARA O ADMIN ---
 
-// 1. KPIs (Os mesmos, estão ótimos)
 const kpiData = [
   { title: "Total de Usuários", value: "8", icon: Users, color: "text-blue-500" },
   { title: "Total de Clientes", value: "3", icon: Building, color: "text-green-600" },
@@ -38,40 +35,35 @@ const kpiData = [
   { title: "Total de OS (Mês)", value: "58", icon: Wrench, color: "text-destructive" },
 ];
 
-// 2. Gráfico 1: Atividade por Cliente (O seu gráfico)
 const clientChartData = [
   { name: 'Cliente A', os: 22 },
   { name: 'Cliente B', os: 18 },
   { name: 'Cliente C', os: 18 },
 ];
 
-// 3. NOVO Gráfico 2: Tendência de OS (Corretiva vs. Preventiva)
 const osTrendData = [
   { name: 'Ago', Corretivas: 30, Preventivas: 15 },
   { name: 'Set', Corretivas: 25, Preventivas: 20 },
   { name: 'Out', Corretivas: 18, Preventivas: 25 },
 ];
 
-// 4. NOVOS Dados Tabela 1: Atividade dos Manutentores
 const technicianData = [
   { id: 'man001', nome: 'Luis Gustavo', avatar: 'LG', concluidas: 28, taxa: "95%" },
   { id: 'man002', nome: 'Ana Silva', avatar: 'AS', concluidas: 22, taxa: "92%" },
   { id: 'man003', nome: 'Carlos Souza', avatar: 'CS', concluidas: 15, taxa: "88%" },
 ];
 
-// 5. NOVOS Dados Tabela 2: Pendências do Sistema
 const systemFeedData = [
   { id: 'u-new-1', descricao: 'novo_tecnico@grandtech.com', tipo: 'Novo Usuário', prioridade: "Média" },
   { id: 'c-new-1', descricao: 'Padaria Pão Quente', tipo: 'Novo Cliente', prioridade: "Alta" },
   { id: 'os-p-1', descricao: 'OS-901 (Cliente A)', tipo: 'OS não atribuída', prioridade: "Alta" },
 ];
-
-// --- O COMPONENTE ---
+// --- FIM DOS DADOS MOCKADOS ---
 
 export default function AdminHomePage() {
   return (
     <div className="space-y-6">
-      {/* 1. CABEÇALHO (Sem alteração) */}
+      {/* 1. CABEÇALHO */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Painel do Administrador</h2>
@@ -84,12 +76,12 @@ export default function AdminHomePage() {
             <Link href="/dashboard/admin/usuarios"><Users className="mr-2 h-4 w-4" /> Gerenciar Usuários</Link>
           </Button>
           <Button asChild>
-            <Link href="/dashboard/clientes"><Building className="mr-2 h-4 w-4" /> Gerenciar Clientes</Link>
+            <Link href="/dashboard/admin/clientes"><Building className="mr-2 h-4 w-4" /> Gerenciar Clientes</Link>
           </Button>
         </div>
       </div>
 
-      {/* 2. KPIs (Sem alteração) */}
+      {/* 2. KPIs DO SISTEMA */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {kpiData.map((kpi) => (
           <Card key={kpi.title}>
@@ -104,10 +96,8 @@ export default function AdminHomePage() {
         ))}
       </div>
 
-      {/* 3. NOVA SEÇÃO DE GRÁFICOS (Lado a Lado) */}
+      {/* 3. GRÁFICOS (LADO A LADO) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* GRÁFICO 1: Atividade por Cliente (O seu) */}
         <Card>
           <CardHeader>
             <CardTitle>Atividade por Cliente (Mês)</CardTitle>
@@ -124,8 +114,6 @@ export default function AdminHomePage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
-        {/* GRÁFICO 2: Tendência Corretiva vs. Preventiva (NOVO) */}
         <Card>
           <CardHeader>
             <CardTitle>Tendência de OS (Trimestre)</CardTitle>
@@ -133,7 +121,6 @@ export default function AdminHomePage() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              {/* Gráfico de Barras Empilhadas */}
               <BarChart data={osTrendData}>
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={30} />
@@ -147,10 +134,8 @@ export default function AdminHomePage() {
         </Card>
       </div>
 
-      {/* 4. NOVA SEÇÃO DE TABELAS (Lado a Lado) */}
+      {/* 4. TABELAS (LADO A LADO) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* TABELA 1: Atividade dos Manutentores (NOVO) */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Atividade dos Manutentores (Mês)</CardTitle>
@@ -192,8 +177,6 @@ export default function AdminHomePage() {
             </Table>
           </CardContent>
         </Card>
-
-        {/* TABELA 2: Pendências do Sistema (NOVO) */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Pendências do Sistema</CardTitle>
@@ -225,7 +208,6 @@ export default function AdminHomePage() {
             </Table>
           </CardContent>
         </Card>
-
       </div>
     </div>
   );

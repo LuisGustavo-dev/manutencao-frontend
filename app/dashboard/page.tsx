@@ -5,24 +5,25 @@ import { useAuth } from '@/app/contexts/authContext';
 
 export default function DashboardRedirectPage() {
   const router = useRouter();
-  const { role } = useAuth();
+  const { role, token } = useAuth();
 
   useEffect(() => {
+    if (token === undefined) return;
+
     if (role === 'Admin') {
       router.push('/dashboard/admin');
     } else if (role === 'Manutentor') {
       router.push('/dashboard/manutentor');
     } else if (role === 'Cliente') {
       router.push('/dashboard/cliente');
-    } else if (role === null) {
-      // Se caiu aqui sem role, volta pro login
+    } else {
       router.push('/login');
     }
-  }, [role, router]);
+  }, [role, token, router]);
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <p>Redirecionando...</p>
+    <div className="flex h-screen w-full items-center justify-center">
+      <p>Carregando seu painel...</p>
     </div>
   );
 }
