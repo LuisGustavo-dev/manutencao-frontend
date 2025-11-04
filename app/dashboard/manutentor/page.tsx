@@ -45,7 +45,7 @@ const kpiData = [
   { title: "Corretivas Pendentes", value: "3", description: "Aguardando atribuição", icon: AlertTriangle, color: "text-destructive" },
   { title: "OS Em Andamento", value: "2", description: "Técnicos em campo", icon: Wrench, color: "text-blue-500" },
   { title: "Preventivas (Semana)", value: "5", description: "Agendadas para os próx. 7 dias", icon: CalendarCheck, color: "text-green-600" },
-  { title: "Equipamentos Offline", value: "2", description: "Status 'EmManutencao'", icon: Package, color: "text-gray-500" },
+  { title: "Equipamentos Offline", value: "2", description: "Status 'Manutencao'", icon: Package, color: "text-gray-500" },
 ];
 
 // 2. Dados para o Gráfico (Sem alteração)

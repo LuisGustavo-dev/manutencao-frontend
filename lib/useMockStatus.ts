@@ -4,7 +4,7 @@ import { mockEquipamentos } from './mock-data';
 
 // Hook para pegar o status "real" (checa localStorage primeiro)
 export const useEquipmentStatus = (equipamentoId: string | null) => {
-  const [status, setStatus] = useState<'Disponível' | 'EmManutencao' | null>(null);
+  const [status, setStatus] = useState<'Disponível' | 'Manutencao' | null>(null);
 
   useEffect(() => {
     if (!equipamentoId) return;
@@ -24,7 +24,7 @@ export const useEquipmentStatus = (equipamentoId: string | null) => {
   }, [equipamentoId]);
 
   // Função para o componente atualizar o status
-  const updateStatus = (newStatus: 'Disponível' | 'EmManutencao') => {
+  const updateStatus = (newStatus: 'Disponível' | 'Manutencao') => {
     if (equipamentoId) {
       localStorage.setItem(`status_${equipamentoId}`, newStatus);
       setStatus(newStatus);

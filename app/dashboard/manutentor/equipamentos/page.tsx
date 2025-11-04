@@ -99,7 +99,7 @@ export default function ManutentorEquipamentosPage() {
             <SelectContent>
               <SelectItem value="all">Todos os Status</SelectItem>
               <SelectItem value="Disponível">Disponível</SelectItem>
-              <SelectItem value="EmManutencao">Em Manutenção</SelectItem>
+              <SelectItem value="Manutencao">Em Manutenção</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>

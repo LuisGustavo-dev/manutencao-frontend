@@ -22,6 +22,7 @@ interface AppSidebarProps {
 
 // Configuração do menu (sem alteração)
 const fullMenuConfig = [
+    // ... (seu config de menu completo)
     {
         label: "Painel",
         items: [
@@ -58,12 +59,17 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
     const { role, setRole, logout, user } = useAuth()
     const router = useRouter()
     const pathname = usePathname();
-    const [loadingPath, setLoadingPath] = useState<string | null>(null);
+    const [loadingPath, setLoadingPath] = useState<string | null>(null); // <-- O estado de loading
 
     const loggedInRole = useAuth().role; 
     const currentRole = role || "Admin"; 
 
-    useEffect(() => { if (loadingPath) setLoadingPath(null); }, [pathname, loadingPath]);
+    // --- LÓGICA DE LOADING (UseEffect) ---
+    // Limpa o loader DEPOIS que a navegação terminar (pathname mudar)
+    useEffect(() => { 
+        if (loadingPath) setLoadingPath(null); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname]); // <-- O ESLint vai reclamar, mas queremos que rode SÓ com o pathname
 
     const accessibleMenuGroups = fullMenuConfig
         .map(group => ({
@@ -80,50 +86,57 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
 
     const handleLogout = () => { logout(); toast.success("Você saiu com sucesso!"); };
     
+    // --- LÓGICA DE LOADING (handleClick) ---
     const handleClick = (item: any) => {
-        // A lógica de path é movida para as funções 'render'
-        // para que 'handleClick' possa lidar com 'action' ou 'path'
-        if (item.disabled) toast.error(`${item.name} em construção!`);
-        else if (item.action) item.action();
-        else if (item.path) { 
+        if (item.disabled) {
+            toast.error(`${item.name} em construção!`);
+        } else if (item.action) {
+            item.action();
+        } else if (item.path) { 
+            // Não faz nada se já estiver carregando ou na página
             if (item.path === pathname || loadingPath === item.path) return;
+            
+            // 1. ATIVA O LOADER IMEDIATAMENTE
             setLoadingPath(item.path); 
+            // 2. INICIA A NAVEGAÇÃO
             router.push(item.path); 
         }
     };
 
     const atalhos = [{ name: "Sair", icon: LogOut, action: handleLogout }];
     
+    // Dados do Perfil
     const userName = user?.nome || "Usuário";
     const roleDisplayName = availableRoles.find(r => r.id === currentRole)?.nome.replace(" (Simular)", "") || currentRole;
     const userEmail = user?.email || `Cargo: ${roleDisplayName}`;
     const userFallback = userName.charAt(0).toUpperCase();
 
-    // --- FUNÇÃO renderMenuItem (CORRIGIDA) ---
+    // --- FUNÇÃO renderMenuItem (COM LOADING) ---
     const renderMenuItem = (item: any) => {
         const Icon = item.icon
-        let targetPath = item.path; // item.path PODE ser undefined aqui
+        let targetPath = item.path; 
 
-        // --- INÍCIO DA CORREÇÃO ---
-        // Só executa a lógica de path se 'targetPath' existir
         if (targetPath) {
             if (currentRole !== 'Admin' && !targetPath.startsWith('/dashboard/admin')) {
-                // Converte /dashboard/equipamentos -> /dashboard/cliente/equipamentos
                 targetPath = targetPath.replace('/dashboard/', `/dashboard/${currentRole.toLowerCase()}/`);
             }
         }
-        // --- FIM DA CORREÇÃO ---
 
         const isActive = pathname === targetPath;
-        const isLoading = loadingPath === targetPath; 
+        const isLoading = loadingPath === targetPath; // <-- Verifica se é este item que está carregando
 
         return (
             <SidebarMenuItem key={item.name}>
                 <SidebarMenuButton
-                    onClick={() => handleClick({...item, path: targetPath})} // Passa o path corrigido
-                    className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""} ${isActive ? "bg-primary hover:bg-primary/90 text-white hover:text-white cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-700"} ${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} `}
-                    disabled={isLoading || item.disabled} 
+                    onClick={() => handleClick({...item, path: targetPath})}
+                    // Adiciona classes de loading
+                    className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""} 
+                               ${isActive ? "bg-primary hover:bg-primary/90 text-white hover:text-white cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-700"} 
+                               ${item.disabled ? "cursor-not-allowed opacity-50" : ""} 
+                               ${isLoading ? "cursor-wait opacity-70" : ""} `} // <-- Classe de loading
+                    disabled={isLoading || item.disabled} // <-- Desabilita enquanto carrega
                 >
+                    {/* Mostra o Loader2 se isLoading for true */}
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icon className="w-4 h-4" />}
                     {!collapsed && <span>{item.name}</span>}
                 </SidebarMenuButton>
@@ -131,30 +144,31 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
         )
     };
 
-    // --- FUNÇÃO renderDropdownItem (CORRIGIDA) ---
+    // --- FUNÇÃO renderDropdownItem (COM LOADING) ---
     const renderDropdownItem = (item: any) => {
         const Icon = item.icon;
-        let targetPath = item.path; // item.path PODE ser undefined aqui (ex: "Sair")
+        let targetPath = item.path;
 
-        // --- INÍCIO DA CORREÇÃO ---
-        // Só executa a lógica de path se 'targetPath' existir
         if (targetPath) {
             if (currentRole !== 'Admin' && !targetPath.startsWith('/dashboard/admin')) {
                 targetPath = targetPath.replace('/dashboard/', `/dashboard/${currentRole.toLowerCase()}/`);
             }
         }
-        // --- FIM DA CORREÇÃO ---
         
-        const isLoading = loadingPath === targetPath;
+        const isLoading = loadingPath === targetPath; // <-- Verifica o loading
         const isActive = pathname === targetPath;
 
         return (
             <DropdownMenuItem
                 key={item.name}
                 onClick={() => handleClick({...item, path: targetPath})}
-                className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
-                disabled={isLoading || item.disabled}
+                // Adiciona classes de loading
+                className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} 
+                           ${isLoading ? "cursor-wait opacity-70" : ""} 
+                           ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
+                disabled={isLoading || item.disabled} // <-- Desabilita enquanto carrega
             >
+                {/* Mostra o Loader2 se isLoading for true */}
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icon className="mr-2 h-4 w-4" />}
                 {item.name}
             </DropdownMenuItem>

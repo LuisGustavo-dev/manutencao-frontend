@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { mockOrdensServico, mockEquipamentos } from '@/lib/mock-data';
 import type { OrdemServico } from '@/lib/mock-data';
-import { useAuth } from '@/app/contexts/authContext';
+import { useAuth } from '@/app/contexts/authContext'; // <-- Importa o hook
 
 // Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
@@ -10,14 +10,13 @@ import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
 import { OsTabs } from './components/OsTabs';
 
-// Adicionamos 'export' para que outros arquivos (como OsTabs.tsx)
-// possam importar este tipo.
+// Adicionamos 'export'
 export type EnrichedOS = OrdemServico & {
   equipamentoNome: string;
 };
 
 export default function ClienteOrdensServicoPage() {
-  const { role, user } = useAuth(); // Pega o usuário para filtrar
+  const { role, user } = useAuth(); // <-- Pega o usuário logado
 
   // --- Estados ---
   const [allOrdens, setAllOrdens] = useState<EnrichedOS[]>([]);
@@ -26,20 +25,24 @@ export default function ClienteOrdensServicoPage() {
 
   // --- 1. Enriquece os dados (useEffect) ---
   useEffect(() => {
+    // Aguarda o usuário ser carregado pelo contexto
+    if (!user) return; 
+
     const enriched = mockOrdensServico.map((os) => ({
       ...os,
       equipamentoNome: mockEquipamentos.find(e => e.id === os.equipamentoId)?.nome || 'Não encontrado',
     }));
     
-    // (Simulação de filtro por cliente)
-    const meuClienteNomeSimulado = "Cliente A (Padaria)"; // (Vem do mock)
-    
+    // --- CORREÇÃO DINÂMICA ---
+    // Agora o filtro usa o 'clienteId' do usuário logado
     if (role === 'Cliente') {
-      setAllOrdens(enriched.filter(os => os.clienteNome === meuClienteNomeSimulado));
+      // user.clienteId (ex: 'cli-1')
+      setAllOrdens(enriched.filter(os => os.clienteId === user.clienteId));
     } else {
       // (Admin simulando vê todas)
       setAllOrdens(enriched);
     }
+    // Roda sempre que o usuário (ou a simulação) mudar
   }, [role, user]);
 
   // --- 2. Filtra a lista com base nos estados (useMemo) ---
@@ -55,7 +58,7 @@ export default function ClienteOrdensServicoPage() {
     });
   }, [allOrdens, searchTerm, tipoFilter]);
 
-  // --- 3. CORREÇÃO: Nomes das variáveis simplificados ---
+  // --- 3. Separa as listas para as Abas ---
   const pendentes = filteredOrdens.filter(os => os.status === 'Pendente');
   const emAndamento = filteredOrdens.filter(os => os.status === 'Em Andamento');
   const concluidas = filteredOrdens.filter(os => os.status === 'Concluída');
@@ -81,7 +84,7 @@ export default function ClienteOrdensServicoPage() {
         onTipoChange={setTipoFilter}
       />
 
-      {/* 4. ABAS E TABELAS (Agora os nomes batem) */}
+      {/* 4. ABAS E TABELAS */}
       <OsTabs
         pendentes={pendentes}
         emAndamento={emAndamento}

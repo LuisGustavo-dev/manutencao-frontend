@@ -1,4 +1,3 @@
-// --- 1. NOVOS TIPOS ---
 export type Cliente = {
   id: string;
   nomeFantasia: string;
@@ -11,14 +10,12 @@ export type Tecnico = {
   nome: string;
 };
 
-// --- 2. TIPOS ATUALIZADOS ---
 export type Equipamento = {
   id: string;
-  clienteId: string | null; // <-- CAMPO DE VÍNCULO
+  clienteId: string | null;
   nome: string;
   tipo: 'Tunel de congelamento' | 'Camara de congelado' | 'Camara de resfriado' | 'Girofreezer' | 'Maquina de gelo' | 'Climatização';
-  statusManutencao: 'Disponível' | 'EmManutencao';
-  // Detalhes da aba "Climatização"
+  statusManutencao: 'Disponível' | 'Manutencao';
   modeloCompressor: string;
   tipoGas: string;
   tipoOleo: string;
@@ -26,7 +23,7 @@ export type Equipamento = {
   aplicacao: string;
   tipoCondensador: string;
   tipoEvaporador: string;
-  valvulaExpansao: string; // Simplificado para a demo
+  valvulaExpansao: string; 
 };
 
 export type OrdemServico = {
@@ -35,20 +32,20 @@ export type OrdemServico = {
   tipo: 'Corretiva' | 'Preventiva';
   status: 'Pendente' | 'Em Andamento' | 'Concluída';
   detalhes: string;
-  tecnicoId?: string | null; // <-- NOVO CAMPO
-  clienteNome: string; // <-- NOVO CAMPO (simulado)
-  dataAbertura: string; // <-- NOVO CAMPO (simulado)
+  tecnicoId?: string | null; 
+  clienteId: string | null; // <-- CORREÇÃO: Usar clienteId
+  dataAbertura: string; 
+  // (O campo clienteNome foi removido daqui pois agora buscamos pelo clienteId)
 };
 
 export type Usuario = {
   id: string;
   email: string;
   senha: string; 
-  nome: string; // <-- ADICIONADO
-  role: 'Cliente' | 'Manutentor' | 'Admin'; // <-- ADICIONADO 'Admin'
+  nome: string; 
+  role: 'Cliente' | 'Manutentor' | 'Admin';
+  clienteId: string | null; // <-- CORREÇÃO: Vincula o login ao cliente
 };
-
-// --- 3. MOCKS ATUALIZADOS ---
 
 export const mockUsuarios: Usuario[] = [
   { 
@@ -56,21 +53,24 @@ export const mockUsuarios: Usuario[] = [
     email: 'cliente@empresa.com', 
     senha: '123', 
     role: 'Cliente', 
-    nome: 'Cliente Exemplo' 
+    nome: 'Cliente Exemplo',
+    clienteId: 'cli-1' // <-- VÍNCULO: Este usuário é da "Padaria Pão Quente"
   },
   { 
     id: 'u2', 
     email: 'manutentor@grandtech.com', 
     senha: '123', 
     role: 'Manutentor', 
-    nome: 'Luis (Manutentor)' 
+    nome: 'Luis (Manutentor)',
+    clienteId: null // Manutentor não é cliente
   },
   { 
     id: 'adm001', 
     email: 'admin@grandtech.com', 
     senha: '123', 
     role: 'Admin', 
-    nome: 'Admin (Super User)' 
+    nome: 'Admin (Super User)',
+    clienteId: null // Admin não é cliente
   },
 ];
 
@@ -89,7 +89,7 @@ export const mockTecnicos: Tecnico[] = [
 export const mockEquipamentos: Equipamento[] = [
   {
     id: 'tcf-001',
-    clienteId: 'cli-1', // VINCULADO
+    clienteId: 'cli-1', // VINCULADO (Padaria)
     nome: 'Túnel de Congelamento Principal',
     tipo: 'Tunel de congelamento',
     statusManutencao: 'Disponível',
@@ -104,10 +104,10 @@ export const mockEquipamentos: Equipamento[] = [
   },
   {
     id: 'cr-002',
-    clienteId: 'cli-2', // VINCULADO
+    clienteId: 'cli-2', // VINCULADO (Mercado)
     nome: 'Câmara Resfriados Laticínios',
     tipo: 'Camara de resfriado',
-    statusManutencao: 'EmManutencao',
+    statusManutencao: 'Manutencao',
     modeloCompressor: 'Copeland ZB-45',
     tipoGas: 'R-134a',
     tipoOleo: 'PVE ISO 32',
@@ -119,7 +119,7 @@ export const mockEquipamentos: Equipamento[] = [
   },
   {
     id: 'mg-003',
-    clienteId: null, // NÃO VINCULADO
+    clienteId: null, // NÃO VINCULADO (Estoque)
     nome: 'Máquina de Gelo (Estoque)',
     tipo: 'Maquina de gelo',
     statusManutencao: 'Disponível',
@@ -142,7 +142,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Em Andamento',
     detalhes: 'Cliente reportou via QR Code que o equipamento não está atingindo a temperatura. Fotos anexadas (simulado). Verificar possível vazamento de gás.',
     tecnicoId: 'man001', 
-    clienteNome: 'Mercado Central',
+    clienteId: 'cli-2', // <-- Vínculo (Mercado Central)
     dataAbertura: '03/11/2025'
   },
   {
@@ -152,7 +152,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Pendente',
     detalhes: 'Checklist Anual Agendado. Verificar superaquecimento, reaperto de painel e troca de filtros.',
     tecnicoId: null, 
-    clienteNome: 'Padaria Pão Quente',
+    clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
     dataAbertura: '02/11/2025'
   },
   {
@@ -162,7 +162,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Pendente',
     detalhes: 'Equipamento parou subitamente.',
     tecnicoId: null, 
-    clienteNome: 'Padaria Pão Quente',
+    clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
     dataAbertura: '04/11/2025'
   },
 ];

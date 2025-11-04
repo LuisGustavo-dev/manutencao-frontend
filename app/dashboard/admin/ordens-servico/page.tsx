@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { mockOrdensServico, mockEquipamentos, mockTecnicos } from '@/lib/mock-data';
-import type { OrdemServico, Tecnico } from '@/lib/mock-data';
+// 1. IMPORTAR MOCKCLIENTES E CLIENTE
+import { mockOrdensServico, mockEquipamentos, mockTecnicos, mockClientes } from '@/lib/mock-data';
+import type { OrdemServico, Tecnico, Cliente } from '@/lib/mock-data';
 import { useAuth } from '@/app/contexts/authContext';
 
 // Importa os componentes do diretório LOCAL
@@ -10,10 +11,11 @@ import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
 import { OsTabs } from './components/OsTabs';
 
-// Tipo enriquecido que será usado pelos componentes filhos
+// 2. ATUALIZAR O TIPO 'EnrichedOS'
 export type EnrichedOS = OrdemServico & {
   equipamentoNome: string;
   tecnicoNome: string | null;
+  clienteNome: string | null; // <-- CAMPO ADICIONADO
 };
 
 export default function AdminOrdensServicoPage() {
@@ -24,12 +26,15 @@ export default function AdminOrdensServicoPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState('todos');
 
-  // --- 1. Enriquece os dados (useEffect) ---
+  // --- 3. ATUALIZAR O 'useEffect' ---
   useEffect(() => {
     const enriched = mockOrdensServico.map((os) => ({
       ...os,
       equipamentoNome: mockEquipamentos.find(e => e.id === os.equipamentoId)?.nome || 'Não encontrado',
       tecnicoNome: mockTecnicos.find(t => t.id === os.tecnicoId)?.nome || null,
+      // --- CAMPO ADICIONADO ---
+      // Busca o nome do cliente usando o clienteId da OS
+      clienteNome: mockClientes.find(c => c.id === os.clienteId)?.nomeFantasia || null,
     }));
     
     // O Admin vê todas as OS
@@ -37,13 +42,14 @@ export default function AdminOrdensServicoPage() {
 
   }, [role]); // Roda se a role de simulação mudar
 
-  // --- 2. Filtra a lista com base nos estados (useMemo) ---
+  // --- 4. ATUALIZAR O 'useMemo' para segurança ---
   const filteredOrdens = useMemo(() => {
     return allOrdens.filter(os => {
       const searchMatch = searchTerm === '' ||
         os.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         os.equipamentoNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        os.clienteNome.toLowerCase().includes(searchTerm.toLowerCase());
+        // Verifica se clienteNome existe ANTES de chamar toLowerCase()
+        (os.clienteNome && os.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const tipoMatch = tipoFilter === 'todos' || os.tipo === tipoFilter;
 
@@ -51,7 +57,7 @@ export default function AdminOrdensServicoPage() {
     });
   }, [allOrdens, searchTerm, tipoFilter]);
 
-  // --- 3. Separa as listas para as Abas ---
+  // --- Separa as listas para as Abas ---
   const ordensPendentes = filteredOrdens.filter(os => os.status === 'Pendente');
   const ordensEmAndamento = filteredOrdens.filter(os => os.status === 'Em Andamento');
   const ordensConcluidas = filteredOrdens.filter(os => os.status === 'Concluída');

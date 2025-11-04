@@ -3,11 +3,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter } from 'next/navigation';
 // Importa os dados e o tipo do seu mock
 import { mockUsuarios } from '@/lib/mock-data';
-import type { Usuario } from '@/lib/mock-data';
+import type { Usuario } from '@/lib/mock-data'; // <-- Usa o tipo 'Usuario'
 
 interface AuthContextType {
   token: string | null | undefined; // undefined = carregando
-  user: Usuario | null; // <-- Usa o tipo 'Usuario' do seu mock
+  user: Usuario | null; // <-- Usa o tipo 'Usuario' completo
   role: string | null;
   setRole: (role: string) => void;
   logout: () => void;
@@ -23,16 +23,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedRole = localStorage.getItem('user_role');
     if (storedRole) {
-      // Encontra o usuário no mock com base na role salva
+      // Carrega o usuário completo baseado na role salva
       const foundUser = mockUsuarios.find(u => u.role === storedRole);
       if (foundUser) {
         setToken(storedRole);
-        setUser(foundUser);
+        setUser(foundUser); // <-- Salva o usuário completo (com .nome, .email, .clienteId)
       } else {
-        setToken(null); // Role salva é inválida
+        setToken(null); 
       }
     } else {
-      setToken(null); // Não logado
+      setToken(null); 
     }
   }, []);
 
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (foundUser) {
       localStorage.setItem('user_role', newRole);
       setToken(newRole);
-      setUser(foundUser);
+      setUser(foundUser); // <-- Salva o usuário completo
     }
   };
 
