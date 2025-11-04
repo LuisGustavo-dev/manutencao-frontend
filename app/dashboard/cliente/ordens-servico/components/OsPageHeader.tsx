@@ -1,26 +1,27 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // Importa o router
 
-interface OsPageHeaderProps {
-  role: string | null;
-}
+export function OsPageHeader() {
+  const router = useRouter();
 
-export function OsPageHeader({ role }: OsPageHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Ordens de Serviço</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Minhas Ordens de Serviço</h2>
         <p className="text-muted-foreground">
-          Gerencie todas as solicitações de manutenção.
+          Acompanhe o status de todos os seus chamados.
         </p>
       </div>
-      {(role === 'Admin' || role === 'Manutentor') && (
-        <Button size="lg" onClick={() => alert('Abrir modal/página de criação de OS')}>
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Nova Ordem de Serviço
-        </Button>
-      )}
+      {/* O Cliente abre chamado pela página de Equipamentos */}
+      <Button 
+        size="lg" 
+        onClick={() => router.push('/dashboard/cliente/equipamentos')}
+      >
+        <PlusCircle className="mr-2 h-5 w-5" />
+        Abrir Novo Chamado
+      </Button>
     </div>
   );
 }

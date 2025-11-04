@@ -4,19 +4,19 @@ import { mockOrdensServico, mockEquipamentos, mockTecnicos } from '@/lib/mock-da
 import type { OrdemServico, Tecnico } from '@/lib/mock-data';
 import { useAuth } from '@/app/contexts/authContext';
 
-// Importa os NOVOS componentes
+// Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
 import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
 import { OsTabs } from './components/OsTabs';
 
-// Tipo enriquecido que será usado nas tabelas
+// Tipo enriquecido que será usado pelos componentes filhos
 export type EnrichedOS = OrdemServico & {
   equipamentoNome: string;
   tecnicoNome: string | null;
 };
 
-export default function OrdensServicoPage() {
+export default function AdminOrdensServicoPage() {
   const { role } = useAuth(); 
 
   // --- Estados ---
@@ -32,14 +32,10 @@ export default function OrdensServicoPage() {
       tecnicoNome: mockTecnicos.find(t => t.id === os.tecnicoId)?.nome || null,
     }));
     
-    // Filtra para o cliente
-    if (role === 'Cliente') {
-      // (Simulação de filtro por cliente)
-      setAllOrdens(enriched.filter(os => os.clienteNome === 'Cliente A (Padaria)'));
-    } else {
-      setAllOrdens(enriched);
-    }
-  }, [role]); 
+    // O Admin vê todas as OS
+    setAllOrdens(enriched);
+
+  }, [role]); // Roda se a role de simulação mudar
 
   // --- 2. Filtra a lista com base nos estados (useMemo) ---
   const filteredOrdens = useMemo(() => {
@@ -70,7 +66,7 @@ export default function OrdensServicoPage() {
       <OsKpiCards 
         pendentes={ordensPendentes.length}
         emAndamento={ordensEmAndamento.length}
-        concluidas={ordensConcluidas.length} // (Poderia ser um cálculo de 30 dias)
+        concluidas={ordensConcluidas.length}
       />
 
       {/* 3. BARRA DE FILTRO E PESQUISA */}
@@ -87,7 +83,7 @@ export default function OrdensServicoPage() {
         emAndamento={ordensEmAndamento}
         concluidas={ordensConcluidas}
         role={role}
-        tecnicos={mockTecnicos} // <-- Passa a lista de técnicos para o modal
+        tecnicos={mockTecnicos}
       />
     </div>
   );

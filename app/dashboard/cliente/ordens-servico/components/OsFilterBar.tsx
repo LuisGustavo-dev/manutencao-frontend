@@ -29,7 +29,7 @@ export function OsFilterBar({
         <div className="relative w-full md:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input 
-            placeholder="Buscar por OS, equipamento ou cliente..." 
+            placeholder="Buscar por OS ou equipamento..." 
             className="pl-10"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}

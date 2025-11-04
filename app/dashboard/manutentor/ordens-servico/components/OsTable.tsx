@@ -17,19 +17,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EnrichedOS } from '../page';
-import { MoreHorizontal, UserPlus, Eye } from 'lucide-react';
+import { MoreHorizontal, Eye, HardHat, CheckCircle } from 'lucide-react'; // Ícones diferentes
+import { useAuth } from '@/app/contexts/authContext'; // Importa Auth
 
 interface OsTableProps {
   ordens: EnrichedOS[];
   role: string | null;
-  onAssignClick: (os: EnrichedOS) => void;
+  // Removido: onAssignClick
 }
 
-export function OsTable({ ordens, role, onAssignClick }: OsTableProps) {
+export function OsTable({ ordens, role }: OsTableProps) {
   const router = useRouter();
+  const { role: loggedInRole } = useAuth(); // Pega a role (para simulação)
 
+  // O Manutentor vai para a página de detalhes do manutentor
   const goToDetalhe = (id: string) => {
-    router.push(`/dashboard/ordens-servico-detalhe?id=${id}`);
+    router.push(`/dashboard/manutentor/ordens-servico-detalhe?id=${id}`);
+  };
+
+  // O Manutentor vai para a página do EQUIPAMENTO para executar a OS
+  const goToExecutar = (equipamentoId: string) => {
+    router.push(`/equipamento?id=${equipamentoId}`);
   };
 
   const getStatusVariant = (status: string): "destructive" | "secondary" | "outline" => {
@@ -46,9 +54,11 @@ export function OsTable({ ordens, role, onAssignClick }: OsTableProps) {
       <TableHeader>
         <TableRow>
           <TableHead>OS / Data</TableHead>
-          {role !== 'Cliente' && <TableHead>Cliente</TableHead>}
+          <TableHead>Cliente</TableHead>
           <TableHead>Equipamento</TableHead>
-          {role !== 'Cliente' && <TableHead>Técnico</TableHead>}
+          {/* A coluna "Técnico" é desnecessária se estiver filtrado
+              (mas o Admin simulando pode querer ver) */}
+          {loggedInRole === 'Admin' && <TableHead>Técnico</TableHead>}
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Ação</TableHead>
         </TableRow>
@@ -60,9 +70,9 @@ export function OsTable({ ordens, role, onAssignClick }: OsTableProps) {
               <div>{os.id}</div>
               <div className="text-xs text-muted-foreground">{os.dataAbertura}</div>
             </TableCell>
-            {role !== 'Cliente' && <TableCell>{os.clienteNome}</TableCell>}
+            <TableCell>{os.clienteNome}</TableCell>
             <TableCell>{os.equipamentoNome}</TableCell>
-            {role !== 'Cliente' && (
+            {loggedInRole === 'Admin' && (
               <TableCell>
                 {os.tecnicoNome ? (
                   <Badge variant="outline">{os.tecnicoNome}</Badge>
@@ -78,30 +88,29 @@ export function OsTable({ ordens, role, onAssignClick }: OsTableProps) {
               </Badge>
             </TableCell>
             <TableCell className="text-right">
-              {role === 'Cliente' ? (
-                // --- Visão do Cliente ---
-                <Button variant="outline" size="sm" onClick={() => goToDetalhe(os.id)}>
-                  Acompanhar
-                </Button>
-              ) : (
-                // --- Visão do Admin/Manutentor ---
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => goToDetalhe(os.id)}>
-                      <Eye className="mr-2 h-4 w-4" /> Ver Detalhes
+              {/* O Manutentor vê ações de EXECUÇÃO */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {/* 1. Botão "Iniciar" ou "Continuar" */}
+                  {os.status !== 'Concluída' && (
+                    <DropdownMenuItem onClick={() => goToExecutar(os.equipamentoId)}>
+                      <HardHat className="mr-2 h-4 w-4" /> 
+                      {os.status === 'Pendente' ? 'Iniciar OS' : 'Continuar OS'}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onAssignClick(os)}>
-                      <UserPlus className="mr-2 h-4 w-4" /> 
-                      {os.tecnicoId ? 'Mudar Técnico' : 'Atribuir Técnico'}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                  )}
+                  
+                  {/* 2. Botão "Ver Detalhes" (página read-only) */}
+                  <DropdownMenuItem onClick={() => goToDetalhe(os.id)}>
+                    <Eye className="mr-2 h-4 w-4" /> 
+                    {os.status === 'Concluída' ? 'Ver Resumo' : 'Acompanhar'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </TableCell>
           </TableRow>
         ))}

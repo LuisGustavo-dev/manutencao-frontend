@@ -1,37 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { mockEquipamentos, mockClientes } from '@/lib/mock-data'; 
+import { mockEquipamentos, mockClientes } from '@/lib/mock-data';
 import type { Equipamento } from '@/lib/mock-data'; 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAuth } from '@/app/contexts/authContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/app/contexts/authContext'; // Importar Auth para pegar o ID do cliente (simulado)
 import { useRouter } from 'next/navigation';
 import { 
   AlertCircle, 
@@ -40,79 +16,60 @@ import {
   Droplet,
   Wind,
   Bolt,
-  MoreVertical,
-  QrCode,
-  Pencil,
-  History,
-  Package // <-- Importado
+  Package
 } from 'lucide-react';
 
-// Importa os componentes de modal
-import { QrCodeModalContent } from './components/QrCodeModalContent';
-import { EditEquipmentModalContent } from './components/EditEquipmentModalContent';
-import { HistoryModalContent } from './components/HistoryModalContent';
-
-export default function EquipamentosPage() {
+export default function ClienteEquipamentosPage() {
   const [baseUrl, setBaseUrl] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const { role } = useAuth();
+  const { user } = useAuth(); // <-- Pega o usuário logado
   const router = useRouter();
-
-  type ModalType = 'qr' | 'edit' | 'history' | null;
-  const [modalState, setModalState] = useState<{
-    type: ModalType;
-    equipment: Equipamento | null;
-  }>({ type: null, equipment: null });
 
   useEffect(() => {
     setBaseUrl(window.location.origin);
   }, []);
 
+  // --- LÓGICA DE FILTRO DO CLIENTE ---
+  // (Simula que o 'user.id' do authContext está ligado ao 'clienteId' do equipamento)
+  // (No nosso mock, 'u1' (cliente) não bate com 'cli-1' (clienteId), então vamos forçar)
+  const meuClienteId = 'cli-1'; // <-- Simulação
+
   const filteredEquipamentos = mockEquipamentos.filter(eq => {
+    // 1. Filtra SÓ os equipamentos deste cliente
+    if (eq.clienteId !== meuClienteId) {
+      return false;
+    }
+    
     const status = typeof window !== 'undefined' ? 
                    localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
                    eq.statusManutencao;
-    
-    const clienteNome = mockClientes.find(c => c.id === eq.clienteId)?.nomeFantasia || '';
                    
     const statusMatch = statusFilter === 'all' || status === statusFilter;
     
     const searchMatch = searchTerm === '' ||
       eq.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       eq.tipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clienteNome.toLowerCase().includes(searchTerm.toLowerCase());
+      eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase());
 
     return statusMatch && searchMatch;
   });
 
   const handleClientAction = (id: string) => {
+    // O cliente é enviado para a página PÚBLICA do equipamento
     router.push(`/equipamento?id=${id}`);
-  };
-
-  const openModal = (type: ModalType, equipment: Equipamento) => {
-    setModalState({ type, equipment });
-  };
-  const closeModal = () => {
-    setModalState({ type: null, equipment: null });
   };
 
   return (
     <div className="space-y-6">
-      {/* 1. CABEÇALHO DA PÁGINA */}
+      {/* 1. CABEÇALHO DA PÁGINA (Sem botão "Novo") */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Equipamentos</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Meus Equipamentos</h2>
           <p className="text-muted-foreground">
-            Gerencie e monitore todo o seu inventário de equipamentos.
+            Monitore e solicite manutenção para seus equipamentos.
           </p>
         </div>
-        {(role === 'Admin' || role === 'Manutentor') && (
-          <Button onClick={() => alert('Tela de "Criar Equipamento" abriria aqui')}>
-            + Novo Equipamento
-          </Button>
-        )}
       </div>
 
       {/* 2. BARRA DE FILTRO E PESQUISA */}
@@ -121,7 +78,7 @@ export default function EquipamentosPage() {
           <div className="relative w-full md:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input 
-              placeholder="Pesquisar por nome, tipo, cliente..." 
+              placeholder="Pesquisar por nome, tipo..." 
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -140,150 +97,74 @@ export default function EquipamentosPage() {
         </CardContent>
       </Card>
       
-      {/* 3. GRID DE EQUIPAMENTOS */}
+      {/* 3. GRID DE EQUIPAMENTOS (Versão Cliente) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         
         {filteredEquipamentos.map((eq) => {
-          const qrUrl = `${baseUrl}/equipamento?id=${eq.id}`;
           const status = typeof window !== 'undefined' ? 
                                 localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
                                 eq.statusManutencao;
-          const cliente = mockClientes.find(c => c.id === eq.clienteId);
 
           return (
             <Card key={eq.id} className="flex flex-col hover:shadow-lg transition-shadow">
               
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
-                <div className="flex-1">
-                  <CardTitle className="truncate">{eq.nome}</CardTitle>
-                  {/* Mostra o cliente ou "Sem cliente" */}
-                  <CardDescription className="flex items-center gap-2">
-                    {cliente ? (
-                      <>
-                        <Package className="h-4 w-4" /> {cliente.nomeFantasia}
-                      </>
-                    ) : (
-                      <span className="text-yellow-600">Sem cliente (Estoque)</span>
-                    )}
-                  </CardDescription>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {/* Badge de Status */}
+              <CardHeader>
+                {/* O Cliente não precisa do menu dropdown, só do status */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="truncate">{eq.nome}</CardTitle>
+                    <CardDescription>{eq.tipo}</CardDescription>
+                  </div>
                   {status === 'Disponível' ? (
                     <Badge variant="outline" className="text-green-600 border-green-600">Disponível</Badge>
                   ) : (
                     <Badge variant="destructive">Em Manutenção</Badge>
                   )}
-
-                  {/* Dropdown Menu (Admin/Manutentor) */}
-                  {(role === 'Admin' || role === 'Manutentor') && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openModal('edit', eq)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openModal('qr', eq)}>
-                          <QrCode className="mr-2 h-4 w-4" /> Ver QR Code
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => openModal('history', eq)}>
-                          <History className="mr-2 h-4 w-4" /> Ver Histórico
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
                 </div>
               </CardHeader>
               
               <CardContent className="flex-grow grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Settings2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate" title={eq.modeloCompressor}>{eq.modeloCompressor}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Wind className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{eq.tipoGas}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Droplet className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{eq.tipoOleo}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Bolt className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{eq.tensao}</span>
-                </div>
+                <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={eq.modeloCompressor}>{eq.modeloCompressor}</span></div>
+                <div className="flex items-center gap-2"><Wind className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tipoGas}</span></div>
+                <div className="flex items-center gap-2"><Droplet className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tipoOleo}</span></div>
+                <div className="flex items-center gap-2"><Bolt className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tensao}</span></div>
               </CardContent>
               
-              {/* Rodapé (Apenas para Clientes) */}
-              {role === 'Cliente' && (
-                <CardFooter>
-                  {status === 'Disponível' ? (
-                    <Button 
-                      variant="destructive" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => handleClientAction(eq.id)}
-                    >
-                      <AlertCircle className="mr-2 h-4 w-4" />
-                      Solicitar Manutenção
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => handleClientAction(eq.id)}
-                    >
-                      Ver Status do Chamado
-                    </Button>
-                  )}
-                </CardFooter>
-              )}
+              {/* O Cliente VÊ o rodapé de ação */}
+              <CardFooter>
+                {status === 'Disponível' ? (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => handleClientAction(eq.id)}
+                  >
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    Solicitar Manutenção
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => handleClientAction(eq.id)}
+                  >
+                    Ver Status do Chamado
+                  </Button>
+                )}
+              </CardFooter>
             </Card>
           );
         })}
 
-        {/* Mensagem se o filtro não retornar nada */}
         {filteredEquipamentos.length === 0 && (
           <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-12">
-            <p>Nenhum equipamento encontrado com esses filtros.</p>
+            <p>Nenhum equipamento encontrado.</p>
           </div>
         )}
       </div>
 
-      {/* RENDERIZAÇÃO DO DIALOG GLOBAL */}
-      <Dialog open={!!modalState.type} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-xl">
-          {modalState.type === 'qr' && modalState.equipment && (
-            <QrCodeModalContent 
-              equipmentName={modalState.equipment.nome}
-              qrUrl={`${baseUrl}/equipamento?id=${modalState.equipment.id}`}
-              onClose={closeModal} 
-            />
-          )}
-
-          {modalState.type === 'edit' && modalState.equipment && (
-            <EditEquipmentModalContent 
-              equipment={modalState.equipment}
-              clientes={mockClientes} 
-              onClose={closeModal}
-            />
-          )}
-
-          {modalState.type === 'history' && modalState.equipment && (
-            <HistoryModalContent 
-              equipmentName={modalState.equipment.nome}
-              // onClose={closeModal} 
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* O Cliente NÃO precisa dos modais de Admin/Manutentor */}
     </div>
   );
 }

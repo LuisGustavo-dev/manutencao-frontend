@@ -4,7 +4,7 @@ import { mockOrdensServico, mockEquipamentos, mockTecnicos } from '@/lib/mock-da
 import type { OrdemServico, Tecnico } from '@/lib/mock-data';
 import { useAuth } from '@/app/contexts/authContext';
 
-// Importa os NOVOS componentes
+// Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
 import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
@@ -16,8 +16,8 @@ export type EnrichedOS = OrdemServico & {
   tecnicoNome: string | null;
 };
 
-export default function OrdensServicoPage() {
-  const { role } = useAuth(); 
+export default function ManutentorOrdensServicoPage() {
+  const { role, user } = useAuth(); // Pega o usuário para filtrar "Minhas OS"
 
   // --- Estados ---
   const [allOrdens, setAllOrdens] = useState<EnrichedOS[]>([]);
@@ -32,14 +32,15 @@ export default function OrdensServicoPage() {
       tecnicoNome: mockTecnicos.find(t => t.id === os.tecnicoId)?.nome || null,
     }));
     
-    // Filtra para o cliente
-    if (role === 'Cliente') {
-      // (Simulação de filtro por cliente)
-      setAllOrdens(enriched.filter(os => os.clienteNome === 'Cliente A (Padaria)'));
+    // O Manutentor (se não for Admin simulando) só vê as OS atribuídas a ele
+    if (role === 'Manutentor') {
+      // (Usamos o 'user.id' do mock 'man001' que está no authContext)
+      setAllOrdens(enriched.filter(os => os.tecnicoId === user?.id));
     } else {
+      // (Admin simulando vê todas)
       setAllOrdens(enriched);
     }
-  }, [role]); 
+  }, [role, user]); // Roda se a role ou usuário mudar
 
   // --- 2. Filtra a lista com base nos estados (useMemo) ---
   const filteredOrdens = useMemo(() => {
@@ -66,11 +67,11 @@ export default function OrdensServicoPage() {
       {/* 1. CABEÇALHO */}
       <OsPageHeader role={role} />
 
-      {/* 2. CARDS KPI */}
+      {/* 2. CARDS KPI (Customizados para o técnico) */}
       <OsKpiCards 
         pendentes={ordensPendentes.length}
         emAndamento={ordensEmAndamento.length}
-        concluidas={ordensConcluidas.length} // (Poderia ser um cálculo de 30 dias)
+        concluidas={ordensConcluidas.length}
       />
 
       {/* 3. BARRA DE FILTRO E PESQUISA */}
@@ -87,7 +88,7 @@ export default function OrdensServicoPage() {
         emAndamento={ordensEmAndamento}
         concluidas={ordensConcluidas}
         role={role}
-        tecnicos={mockTecnicos} // <-- Passa a lista de técnicos para o modal
+        // Não precisa mais passar 'tecnicos'
       />
     </div>
   );

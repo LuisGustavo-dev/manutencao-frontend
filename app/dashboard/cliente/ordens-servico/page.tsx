@@ -1,23 +1,23 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { mockOrdensServico, mockEquipamentos, mockTecnicos } from '@/lib/mock-data';
-import type { OrdemServico, Tecnico } from '@/lib/mock-data';
+import { mockOrdensServico, mockEquipamentos } from '@/lib/mock-data';
+import type { OrdemServico } from '@/lib/mock-data';
 import { useAuth } from '@/app/contexts/authContext';
 
-// Importa os NOVOS componentes
+// Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
 import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
 import { OsTabs } from './components/OsTabs';
 
-// Tipo enriquecido que será usado nas tabelas
+// Adicionamos 'export' para que outros arquivos (como OsTabs.tsx)
+// possam importar este tipo.
 export type EnrichedOS = OrdemServico & {
   equipamentoNome: string;
-  tecnicoNome: string | null;
 };
 
-export default function OrdensServicoPage() {
-  const { role } = useAuth(); 
+export default function ClienteOrdensServicoPage() {
+  const { role, user } = useAuth(); // Pega o usuário para filtrar
 
   // --- Estados ---
   const [allOrdens, setAllOrdens] = useState<EnrichedOS[]>([]);
@@ -29,25 +29,25 @@ export default function OrdensServicoPage() {
     const enriched = mockOrdensServico.map((os) => ({
       ...os,
       equipamentoNome: mockEquipamentos.find(e => e.id === os.equipamentoId)?.nome || 'Não encontrado',
-      tecnicoNome: mockTecnicos.find(t => t.id === os.tecnicoId)?.nome || null,
     }));
     
-    // Filtra para o cliente
+    // (Simulação de filtro por cliente)
+    const meuClienteNomeSimulado = "Cliente A (Padaria)"; // (Vem do mock)
+    
     if (role === 'Cliente') {
-      // (Simulação de filtro por cliente)
-      setAllOrdens(enriched.filter(os => os.clienteNome === 'Cliente A (Padaria)'));
+      setAllOrdens(enriched.filter(os => os.clienteNome === meuClienteNomeSimulado));
     } else {
+      // (Admin simulando vê todas)
       setAllOrdens(enriched);
     }
-  }, [role]); 
+  }, [role, user]);
 
   // --- 2. Filtra a lista com base nos estados (useMemo) ---
   const filteredOrdens = useMemo(() => {
     return allOrdens.filter(os => {
       const searchMatch = searchTerm === '' ||
         os.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        os.equipamentoNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        os.clienteNome.toLowerCase().includes(searchTerm.toLowerCase());
+        os.equipamentoNome.toLowerCase().includes(searchTerm.toLowerCase());
       
       const tipoMatch = tipoFilter === 'todos' || os.tipo === tipoFilter;
 
@@ -55,22 +55,22 @@ export default function OrdensServicoPage() {
     });
   }, [allOrdens, searchTerm, tipoFilter]);
 
-  // --- 3. Separa as listas para as Abas ---
-  const ordensPendentes = filteredOrdens.filter(os => os.status === 'Pendente');
-  const ordensEmAndamento = filteredOrdens.filter(os => os.status === 'Em Andamento');
-  const ordensConcluidas = filteredOrdens.filter(os => os.status === 'Concluída');
+  // --- 3. CORREÇÃO: Nomes das variáveis simplificados ---
+  const pendentes = filteredOrdens.filter(os => os.status === 'Pendente');
+  const emAndamento = filteredOrdens.filter(os => os.status === 'Em Andamento');
+  const concluidas = filteredOrdens.filter(os => os.status === 'Concluída');
 
   return (
     <div className="space-y-6">
       
       {/* 1. CABEÇALHO */}
-      <OsPageHeader role={role} />
+      <OsPageHeader />
 
       {/* 2. CARDS KPI */}
       <OsKpiCards 
-        pendentes={ordensPendentes.length}
-        emAndamento={ordensEmAndamento.length}
-        concluidas={ordensConcluidas.length} // (Poderia ser um cálculo de 30 dias)
+        pendentes={pendentes.length}
+        emAndamento={emAndamento.length}
+        concluidas={concluidas.length}
       />
 
       {/* 3. BARRA DE FILTRO E PESQUISA */}
@@ -81,13 +81,12 @@ export default function OrdensServicoPage() {
         onTipoChange={setTipoFilter}
       />
 
-      {/* 4. ABAS E TABELAS */}
+      {/* 4. ABAS E TABELAS (Agora os nomes batem) */}
       <OsTabs
-        pendentes={ordensPendentes}
-        emAndamento={ordensEmAndamento}
-        concluidas={ordensConcluidas}
+        pendentes={pendentes}
+        emAndamento={emAndamento}
+        concluidas={concluidas}
         role={role}
-        tecnicos={mockTecnicos} // <-- Passa a lista de técnicos para o modal
       />
     </div>
   );
