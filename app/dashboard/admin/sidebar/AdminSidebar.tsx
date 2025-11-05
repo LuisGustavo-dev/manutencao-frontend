@@ -8,11 +8,10 @@ import { useAuth } from "@/app/contexts/authContext"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar" 
 // Componentes Shadcn
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 // Ícones
-import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, ShieldCheck, Settings } from "lucide-react" 
+import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, ShieldCheck, Settings, HardHat } from "lucide-react" 
 import toast from "react-hot-toast"
 
 interface AppSidebarProps {
@@ -20,123 +19,78 @@ interface AppSidebarProps {
     setCollapsed: (value: boolean) => void
 }
 
-// Configuração do menu (sem alteração)
+// --- CONFIGURAÇÃO DE MENU SOMENTE DO ADMIN ---
+// (Sem allowedRoles, e paths diretos do admin)
 const fullMenuConfig = [
-    // ... (seu config de menu completo)
     {
         label: "Painel",
         items: [
-            { name: "Visão Geral (Admin)", icon: Home, path: "/dashboard/admin", allowedRoles: ['Admin'] },
-            { name: "Visão Geral (Man.)", icon: Home, path: "/dashboard/manutentor", allowedRoles: ['Manutentor'] },
-            { name: "Meus Chamados", icon: Home, path: "/dashboard/cliente", allowedRoles: ['Cliente'] },
+            { name: "Visão Geral", icon: Home, path: "/dashboard/admin" },
         ]
     },
     {
         label: "Gestão",
         items: [
-            { name: "Ordens de Serviço", icon: Wrench, path: "/dashboard/admin/ordens-servico", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-            { name: "Equipamentos", icon: Package, path: "/dashboard/admin/equipamentos", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-            { name: "Clientes", icon: Users, path: "/dashboard/admin/clientes", allowedRoles: ['Admin', 'Manutentor'] },
+            { name: "Ordens de Serviço", icon: Wrench, path: "/dashboard/admin/ordens-servico" },
+            { name: "Equipamentos", icon: Package, path: "/dashboard/admin/equipamentos" },
+            { name: "Clientes", icon: Users, path: "/dashboard/admin/clientes" },
+            { name: "Técnicos", icon: HardHat, path: "/dashboard/admin/tecnicos" },
         ]
     },
-    {
-        label: "Administração", 
-        items: [
-            { name: "Gerenciar Usuários", icon: UserIcon, path: "/dashboard/admin/usuarios", allowedRoles: ['Admin'] },
-            { name: "Configurações", icon: Settings, path: "/dashboard/admin/settings", allowedRoles: ['Admin'] },
-            { name: "Meu Perfil", icon: UserIcon, path: "/dashboard/perfil", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-        ]
-    }
-];
-
-const availableRoles = [
-    { id: 'Admin', nome: 'Admin (Simular)' },
-    { id: 'Manutentor', nome: 'Manutentor (Simular)' },
-    { id: 'Cliente', nome: 'Cliente (Simular)' },
 ];
 
 export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
-    const { role, setRole, logout, user } = useAuth()
+    // Hooks simplificados (sem 'setRole')
+    const { logout, user } = useAuth()
     const router = useRouter()
     const pathname = usePathname();
-    const [loadingPath, setLoadingPath] = useState<string | null>(null); // <-- O estado de loading
+    const [loadingPath, setLoadingPath] = useState<string | null>(null);
 
-    const loggedInRole = useAuth().role; 
-    const currentRole = role || "Admin"; 
-
-    // --- LÓGICA DE LOADING (UseEffect) ---
-    // Limpa o loader DEPOIS que a navegação terminar (pathname mudar)
+    // Limpa o loader DEPOIS que a navegação terminar
     useEffect(() => { 
         if (loadingPath) setLoadingPath(null); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pathname]); // <-- O ESLint vai reclamar, mas queremos que rode SÓ com o pathname
+    }, [pathname]);
 
-    const accessibleMenuGroups = fullMenuConfig
-        .map(group => ({
-            ...group,
-            items: group.items.filter(item => item.allowedRoles.includes(currentRole)),
-        }))
-        .filter(group => group.items.length > 0);
-
-    const handleRoleChange = (newRole: string) => {
-        setRole(newRole);
-        toast.success(`Simulando: ${newRole}`);
-        router.push('/dashboard'); 
-    };
+    // Não precisa mais filtrar o menu, o Admin vê tudo
+    const accessibleMenuGroups = fullMenuConfig;
 
     const handleLogout = () => { logout(); toast.success("Você saiu com sucesso!"); };
     
-    // --- LÓGICA DE LOADING (handleClick) ---
     const handleClick = (item: any) => {
         if (item.disabled) {
             toast.error(`${item.name} em construção!`);
         } else if (item.action) {
             item.action();
         } else if (item.path) { 
-            // Não faz nada se já estiver carregando ou na página
             if (item.path === pathname || loadingPath === item.path) return;
-            
-            // 1. ATIVA O LOADER IMEDIATAMENTE
             setLoadingPath(item.path); 
-            // 2. INICIA A NAVEGAÇÃO
             router.push(item.path); 
         }
     };
 
     const atalhos = [{ name: "Sair", icon: LogOut, action: handleLogout }];
     
-    // Dados do Perfil
-    const userName = user?.nome || "Usuário";
-    const roleDisplayName = availableRoles.find(r => r.id === currentRole)?.nome.replace(" (Simular)", "") || currentRole;
-    const userEmail = user?.email || `Cargo: ${roleDisplayName}`;
+    // Dados do Perfil (simplificado)
+    const userName = user?.nome || "Administrador";
+    const userEmail = user?.email || "admin@grandtech.com";
     const userFallback = userName.charAt(0).toUpperCase();
 
-    // --- FUNÇÃO renderMenuItem (COM LOADING) ---
+    // --- FUNÇÃO renderMenuItem (Simplificada) ---
     const renderMenuItem = (item: any) => {
-        const Icon = item.icon
-        let targetPath = item.path; 
-
-        if (targetPath) {
-            if (currentRole !== 'Admin' && !targetPath.startsWith('/dashboard/admin')) {
-                targetPath = targetPath.replace('/dashboard/', `/dashboard/${currentRole.toLowerCase()}/`);
-            }
-        }
-
+        const Icon = item.icon;
+        const targetPath = item.path; // O path agora é sempre o correto
+        
         const isActive = pathname === targetPath;
-        const isLoading = loadingPath === targetPath; // <-- Verifica se é este item que está carregando
+        const isLoading = loadingPath === targetPath; 
 
         return (
             <SidebarMenuItem key={item.name}>
                 <SidebarMenuButton
-                    onClick={() => handleClick({...item, path: targetPath})}
-                    // Adiciona classes de loading
-                    className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""} 
-                               ${isActive ? "bg-primary hover:bg-primary/90 text-white hover:text-white cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-700"} 
-                               ${item.disabled ? "cursor-not-allowed opacity-50" : ""} 
-                               ${isLoading ? "cursor-wait opacity-70" : ""} `} // <-- Classe de loading
-                    disabled={isLoading || item.disabled} // <-- Desabilita enquanto carrega
+                    onClick={() => handleClick(item)}
+                    className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""} ${isActive ? "bg-primary hover:bg-primary/90 text-white hover:text-white cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-700"} ${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} `}
+                    disabled={isLoading || item.disabled} 
                 >
-                    {/* Mostra o Loader2 se isLoading for true */}
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icon className="w-4 h-4" />}
                     {!collapsed && <span>{item.name}</span>}
                 </SidebarMenuButton>
@@ -144,31 +98,21 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
         )
     };
 
-    // --- FUNÇÃO renderDropdownItem (COM LOADING) ---
+    // --- FUNÇÃO renderDropdownItem (Simplificada) ---
     const renderDropdownItem = (item: any) => {
         const Icon = item.icon;
-        let targetPath = item.path;
-
-        if (targetPath) {
-            if (currentRole !== 'Admin' && !targetPath.startsWith('/dashboard/admin')) {
-                targetPath = targetPath.replace('/dashboard/', `/dashboard/${currentRole.toLowerCase()}/`);
-            }
-        }
+        const targetPath = item.path; // O path é sempre o correto
         
-        const isLoading = loadingPath === targetPath; // <-- Verifica o loading
+        const isLoading = loadingPath === targetPath;
         const isActive = pathname === targetPath;
 
         return (
             <DropdownMenuItem
                 key={item.name}
-                onClick={() => handleClick({...item, path: targetPath})}
-                // Adiciona classes de loading
-                className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} 
-                           ${isLoading ? "cursor-wait opacity-70" : ""} 
-                           ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
-                disabled={isLoading || item.disabled} // <-- Desabilita enquanto carrega
+                onClick={() => handleClick(item)}
+                className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
+                disabled={isLoading || item.disabled}
             >
-                {/* Mostra o Loader2 se isLoading for true */}
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icon className="mr-2 h-4 w-4" />}
                 {item.name}
             </DropdownMenuItem>
@@ -184,7 +128,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
                     onClick={() => setCollapsed(!collapsed)}
                     className="cursor-pointer flex items-center justify-center gap-2"
                 >
-                    <ShieldCheck className='h-8 w-8 text-primary ml-2'/>
+                    <ShieldCheck className='h-8 w-8 text-primary'/>
                     {!collapsed && (
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-semibold">GrandTech</span>
@@ -195,17 +139,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
             </SidebarHeader>
 
             <SidebarContent className="bg-card flex-1 transition-all duration-300">
-                {loggedInRole === 'Admin' && !collapsed && (
-                    <div className="p-4 border-b">
-                        <label className="block text-xs font-medium text-muted-foreground mb-2">Simular Função</label>
-                        <Select value={currentRole} onValueChange={handleRoleChange}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Selecione a função" /></SelectTrigger>
-                            <SelectContent>
-                                {availableRoles.map(r => (<SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
+                {/* O Seletor de Simulação foi REMOVIDO */}
 
                 {accessibleMenuGroups.map(({ label, items }) => (
                     <SidebarGroup key={label}>
