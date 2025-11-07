@@ -39,6 +39,7 @@ import {
 export default function LandingPage() {
   const whatsappLink = "https://api.whatsapp.com/send?phone=5519993537056&text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20uma%20visita%20t%C3%A9cnica.";
 
+  // --- DADOS DO PORTFÓLIO ---
   const portfolioItems = [
     { 
       src: "/assets/carrosel1.jpg", 
@@ -67,7 +68,22 @@ export default function LandingPage() {
     },
   ];
 
-  // --- HOOKS PARA OS "PONTOS" DO CARROSSEL ---
+  // --- DADOS DOS CLIENTES ---
+  const clientLogos = [
+    { src: "/assets/brasa.png", alt: "Logo Cliente Brasa" },
+    { src: "/assets/croissant.png", alt: "Logo Cliente Croissant & Cia" },
+    { src: "/assets/sorvetao.png", alt: "Logo Cliente Sorvetão" },
+    { src: "/assets/diso.jpeg", alt: "Logo Cliente Diso" },
+    { src: "/assets/dellys.avif", alt: "Logo Cliente Dellys" },
+    { src: "/assets/halipar.jpeg", alt: "Logo Cliente Halipar" },
+    { src: "/assets/neves.jpeg", alt: "Logo Cliente Salgados Neves" },
+    { src: "/assets/indaia_pescados.png", alt: "Logo Cliente Indaiá Pescados" },
+    { src: "/assets/sabores_do_acai.jpeg", alt: "Logo Cliente Sabores do Açaí" },
+    { src: "/assets/disc_breja.jpeg", alt: "Logo Cliente Disc Breja" },
+    { src: "/assets/desanta.png", alt: "Logo Cliente D.Santa Logística" },
+  ];
+
+  // --- HOOKS PARA O CARROSSEL (Portfólio) ---
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
   const [count, setCount] = useState(0)
@@ -80,12 +96,26 @@ export default function LandingPage() {
     api.on("resize", () => { setCount(api.scrollSnapList().length) })
   }, [api])
 
+  // --- HOOKS PARA O CARROSSEL (Clientes) ---
+  const [clientApi, setClientApi] = useState<CarouselApi>()
+  const [clientCurrent, setClientCurrent] = useState(0)
+  const [clientCount, setClientCount] = useState(0)
+
+  useEffect(() => {
+    if (!clientApi) { return }
+    setClientCount(clientApi.scrollSnapList().length) 
+    setClientCurrent(clientApi.selectedScrollSnap())
+    clientApi.on("select", () => { setClientCurrent(clientApi.selectedScrollSnap()) })
+    clientApi.on("resize", () => { setClientCount(clientApi.scrollSnapList().length) })
+  }, [clientApi]) // <-- Depende do clientApi
+
+  // --- HOOK PARA O MODAL (Dialog) ---
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col min-h-screen">
       
-      {/* --- Seção 1: Hero (Fundo Imersivo / Texto na Esquerda) --- */}
+      {/* --- Seção 1: Hero (Fundo Imersivo / Texto na Esquerda / Responsivo) --- */}
       <section className="w-full h-screen min-h-[700px] relative flex items-center">
         
         {/* Imagem de Fundo */}
@@ -106,13 +136,7 @@ export default function LandingPage() {
         <div className="container px-4 md:px-6">
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
             
-            {/* --- CORREÇÃO APLICADA AQUI ---
-              Adicionamos 4 classes:
-              - items-center: Centra os botões no celular.
-              - text-center: Centra o H1 e o P no celular.
-              - lg:items-start: Alinha os botões à esquerda no desktop.
-              - lg:text-left: Alinha o H1 e o P à esquerda no desktop.
-            */}
+            {/* Coluna 1: A Promessa (Texto na Esquerda) */}
             <div className="flex flex-col justify-center space-y-6 text-white 
                             items-center text-center lg:items-start lg:text-left">
               
@@ -179,11 +203,9 @@ export default function LandingPage() {
               {portfolioItems.map((item, index) => (
                 <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/3"> 
                   <div className="p-2">
-                    
-                    {/* --- ATUALIZADO: Card com onClick e cursor-pointer --- */}
                     <Card 
                       className="overflow-hidden select-none rounded-xl group relative cursor-pointer"
-                      onClick={() => setSelectedImage(item.src)} // <-- ADICIONADO ONCLICK
+                      onClick={() => setSelectedImage(item.src)}
                     >
                       <img
                         src={item.src}
@@ -196,7 +218,6 @@ export default function LandingPage() {
                         <ZoomIn className="h-10 w-10 text-white opacity-80 group-hover:scale-110 transition-transform duration-300" />
                       </div>
                     </Card>
-
                   </div>
                 </CarouselItem>
               ))}
@@ -228,12 +249,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- Seção 3: Pilares --- */}
-      <section id="pilares" className="w-full py-20 md:py-32 bg-primary"> {/* <-- FUNDO ALTERADO */}
+      {/* --- Seção 3: Pilares (ATUALIZADA COM BG-PRIMARY) --- */}
+      <section id="pilares" className="w-full py-20 md:py-32 bg-primary"> 
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
             
-            {/* --- CORES DE TEXTO ALTERADAS --- */}
             <Badge variant="secondary">Nossa Especialidade</Badge>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-primary-foreground">
               Projetamos para Durar, Cuidamos para Não Parar.
@@ -245,8 +265,7 @@ export default function LandingPage() {
           
           <div className="mx-auto grid max-w-6xl items-stretch gap-y-12 gap-x-8 md:grid-cols-2">
 
-            {/* --- CARD 1 ATUALIZADO (FUNDO SÓLIDO) --- */}
-            <Card className="flex flex-col p-6"> {/* <-- CARD SÓLIDO (bg-card) */}
+            <Card className="flex flex-col p-6"> 
               <h3 className="text-2xl font-semibold text-center text-primary flex items-center justify-center gap-2 mb-6">
                 <Warehouse className="h-6 w-6" /> Venda e Instalação
               </h3>
@@ -275,8 +294,7 @@ export default function LandingPage() {
               </div>
             </Card>
 
-            {/* --- CARD 2 ATUALIZADO (FUNDO SÓLIDO) --- */}
-            <Card className="flex flex-col p-6"> {/* <-- CARD SÓLIDO (bg-card) */}
+            <Card className="flex flex-col p-6"> 
               <h3 className="text-2xl font-semibold text-center text-green-700 dark:text-green-400 flex items-center justify-center gap-2 mb-6">
                 <HardHat className="h-6 w-6" /> Contratos de Manutenção
               </h3>
@@ -309,11 +327,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- NOVA SEÇÃO: Números (Layout 3 + 2 com 5 estatísticas) --- */}
+      {/* --- Seção 4: Números (Layout 3 + 2 com 5 estatísticas) --- */}
       <section id="numeros" className="w-full py-20 md:py-24 bg-white dark:bg-gray-900">
         <div className="container px-4 md:px-6">
           
-          {/* Título da Seção de Números */}
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
             <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
               Resultados que constroem confiança
@@ -323,10 +340,8 @@ export default function LandingPage() {
             </p>
           </div>
           
-          {/* Grid de Estatísticas (Linha 1: 3 colunas) */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-8 max-w-5xl mx-auto">
             
-            {/* Estatística 1: Experiência */}
             <div className="flex flex-col items-center text-center p-6">
               <span className="text-6xl font-bold text-primary mb-2">
                 +15
@@ -336,7 +351,6 @@ export default function LandingPage() {
               </p>
             </div>
             
-            {/* Estatística 2: Clientes */}
             <div className="flex flex-col items-center text-center p-6">
               <span className="text-6xl font-bold text-primary mb-2">
                 +100
@@ -346,7 +360,6 @@ export default function LandingPage() {
               </p>
             </div>
             
-            {/* Estatística 3: Projetos */}
             <div className="flex flex-col items-center text-center p-6">
               <span className="text-6xl font-bold text-primary mb-2">
                 +300
@@ -356,7 +369,6 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Estatística 4: Contratos */}
             <div className="flex flex-col items-center text-center p-6">
               <span className="text-6xl font-bold text-primary mb-2">
                 +50
@@ -366,7 +378,6 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Estatística 5: Equipamentos */}
             <div className="flex flex-col items-center text-center p-6">
               <span className="text-6xl font-bold text-primary mb-2">
                 +500
@@ -380,86 +391,60 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- Seção 4: Clientes e Parceiros --- */}
+      {/* --- Seção 5: Clientes (COM CARROSSEL SHADCN) --- */}
       <section id="clientes-parceiros" className="w-full py-20 md:py-32 bg-gray-50 dark:bg-gray-800">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
             <Badge>Quem Confia</Badge>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
-              Nossos Clientes e Parceiros Estratégicos
+              Grandes indústrias que confiam em nosso trabalho
             </h2>
             <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed">
-              Construímos confiança com grandes indústrias e trabalhamos com os melhores fornecedores para garantir a qualidade.
+              Construímos parcerias de longo prazo com empresas que não podem parar.
             </p>
           </div>
-          <div className="mb-12">
-            <h3 className="text-lg font-semibold text-center text-muted-foreground uppercase tracking-wider mb-8">
-              Clientes
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-4xl mx-auto">
-              <div className="group flex items-center justify-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-transparent 
-                              h-40 transition-all duration-300 ease-in-out 
-                              hover:-translate-y-2 hover:shadow-2xl hover:border-primary">
-                <img 
-                  src="/assets/brasa.png" 
-                  alt="Logo Cliente Brasa" 
-                  width={140} height={70} 
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
+
+          <Carousel 
+            setApi={setClientApi} 
+            className="w-full max-w-6xl mx-auto"
+            opts={{
+              loop: true,
+              align: "start",
+            }}
+          >
+            <CarouselContent className="-ml-4 select-none">
+              {clientLogos.map((logo, index) => (
+                <CarouselItem key={index} className="pl-4 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"> 
+                  <div className="p-4 flex items-center justify-center h-28" title={logo.alt}>
+                    <img
+                      src={logo.src}
+                      alt={logo.alt}
+                      width={140}
+                      height={70}
+                      className="object-contain"
+                    />
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            
+            <div className="flex justify-center gap-2 mt-6">
+              {Array.from({ length: clientCount }).map((_, index) => ( 
+                <button
+                  key={index}
+                  onClick={() => clientApi?.scrollTo(index)} 
+                  className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                    clientCurrent === index ? 'w-4 bg-primary' : 'bg-muted-foreground/50' 
+                  }`}
+                  aria-label={`Ir para o slide de clientes ${index + 1}`}
                 />
-              </div>
-              <div className="group flex items-center justify-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-transparent 
-                              h-40 transition-all duration-300 ease-in-out 
-                              hover:-translate-y-2 hover:shadow-2xl hover:border-primary">
-                <img 
-                  src="/assets/croissant.png" 
-                  alt="Logo Cliente Croissant" 
-                  width={140} height={70} 
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                />
-              </div>
-              <div className="group flex items-center justify-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-transparent 
-                              h-40 transition-all duration-300 ease-in-out 
-                              hover:-translate-y-2 hover:shadow-2xl hover:border-primary">
-                <img 
-                  src="/assets/sorvetao.png" 
-                  alt="Logo Cliente Sorvetão" 
-                  width={140} height={70} 
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                />
-              </div>
+              ))}
             </div>
-          </div>
-          <div className="mt-16 pt-16 border-t">
-            <h3 className="text-lg font-semibold text-center text-muted-foreground uppercase tracking-wider mb-8">
-              Parceiros / Fornecedores
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-xl mx-auto">
-              <div className="group flex items-center justify-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-transparent 
-                              h-40 transition-all duration-300 ease-in-out 
-                              hover:-translate-y-2 hover:shadow-2xl hover:border-primary">
-                <img 
-                  src="/assets/bitzer.png" 
-                  alt="Logo Parceiro Bitzer" 
-                  width={130} height={60} 
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                />
-              </div>
-              <div className="group flex items-center justify-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-transparent 
-                              h-40 transition-all duration-300 ease-in-out 
-                              hover:-translate-y-2 hover:shadow-2xl hover:border-primary">
-                <img 
-                  src="/assets/mipal.png" 
-                  alt="Logo Parceiro Mipal" 
-                  width={130} height={60} 
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                />
-              </div>
-            </div>
-          </div>
+          </Carousel>
         </div>
       </section>
 
-      {/* --- Seção 5: Serviços (COM FUNDO BG-PRIMARY) --- */}
+      {/* --- Seção 6: Serviços (COM FUNDO BG-PRIMARY) --- */}
       <section id="servicos" className="w-full py-20 md:py-32 bg-primary">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">

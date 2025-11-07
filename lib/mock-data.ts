@@ -33,10 +33,9 @@ export type OrdemServico = {
   status: 'Pendente' | 'Em Andamento' | 'Concluída';
   detalhes: string;
   tecnicoId?: string | null; 
-  clienteId: string | null; // <-- CORREÇÃO: Usar clienteId
-  clienteNome: string; // <-- ADIÇÃO: Nome do cliente para exibição
+  clienteId: string | null; 
+  clienteNome: string; 
   dataAbertura: string; 
-  // (O campo clienteNome foi removido daqui pois agora buscamos pelo clienteId)
 };
 
 export type Usuario = {
@@ -45,8 +44,14 @@ export type Usuario = {
   senha: string; 
   nome: string; 
   role: 'Cliente' | 'Manutentor' | 'Admin';
-  clienteId: string | null; // <-- CORREÇÃO: Vincula o login ao cliente
+  clienteId: string | null;
+  cnpj: string | null; 
+  razaoSocial: string | null; 
 };
+
+// --- CORREÇÃO APLICADA ABAIXO ---
+// Os campos 'cnpj' e 'razaoSocial' foram adicionados a todos os usuários
+// para corresponder ao tipo 'Usuario' atualizado.
 
 export const mockUsuarios: Usuario[] = [
   { 
@@ -54,8 +59,11 @@ export const mockUsuarios: Usuario[] = [
     email: 'cliente@empresa.com', 
     senha: '123', 
     role: 'Cliente', 
-    nome: 'Cliente Exemplo',
-    clienteId: 'cli-1' // <-- VÍNCULO: Este usuário é da "Padaria Pão Quente"
+    nome: 'Cliente Exemplo (Padaria)', // <-- Mudei o nome para refletir o usuário
+    clienteId: 'cli-1', 
+    // --- ADICIONADO (para bater com o mockClientes['cli-1']) ---
+    cnpj: '11.222.333/0001-44',
+    razaoSocial: 'Pão Quente Ltda.'
   },
   { 
     id: 'u2', 
@@ -63,7 +71,10 @@ export const mockUsuarios: Usuario[] = [
     senha: '123', 
     role: 'Manutentor', 
     nome: 'Luis (Manutentor)',
-    clienteId: null // Manutentor não é cliente
+    clienteId: null,
+    // --- ADICIONADO ---
+    cnpj: null,
+    razaoSocial: null
   },
   { 
     id: 'adm001', 
@@ -71,9 +82,14 @@ export const mockUsuarios: Usuario[] = [
     senha: '123', 
     role: 'Admin', 
     nome: 'Admin (Super User)',
-    clienteId: null // Admin não é cliente
+    clienteId: null,
+    // --- ADICIONADO ---
+    cnpj: null,
+    razaoSocial: null
   },
 ];
+// --- FIM DA CORREÇÃO ---
+
 
 export const mockClientes: Cliente[] = [
   { id: 'cli-1', nomeFantasia: 'Padaria Pão Quente', razaoSocial: 'Pão Quente Ltda.', cnpj: '11.222.333/0001-44' },
@@ -90,7 +106,7 @@ export const mockTecnicos: Tecnico[] = [
 export const mockEquipamentos: Equipamento[] = [
   {
     id: 'tcf-001',
-    clienteId: 'cli-1', // VINCULADO (Padaria)
+    clienteId: 'cli-1', 
     nome: 'Túnel de Congelamento Principal',
     tipo: 'Tunel de congelamento',
     statusManutencao: 'Disponível',
@@ -105,7 +121,7 @@ export const mockEquipamentos: Equipamento[] = [
   },
   {
     id: 'cr-002',
-    clienteId: 'cli-2', // VINCULADO (Mercado)
+    clienteId: 'cli-2', 
     nome: 'Câmara Resfriados Laticínios',
     tipo: 'Camara de resfriado',
     statusManutencao: 'Manutencao',
@@ -120,7 +136,7 @@ export const mockEquipamentos: Equipamento[] = [
   },
   {
     id: 'mg-003',
-    clienteId: null, // NÃO VINCULADO (Estoque)
+    clienteId: null, 
     nome: 'Máquina de Gelo (Estoque)',
     tipo: 'Maquina de gelo',
     statusManutencao: 'Disponível',
@@ -143,7 +159,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Em Andamento',
     detalhes: 'Cliente reportou via QR Code que o equipamento não está atingindo a temperatura. Fotos anexadas (simulado). Verificar possível vazamento de gás.',
     tecnicoId: 'man001', 
-    clienteId: 'cli-2', // <-- Vínculo (Mercado Central)
+    clienteId: 'cli-2', 
     clienteNome: 'Mercado Central',
     dataAbertura: '03/11/2025'
   },
@@ -154,7 +170,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Pendente',
     detalhes: 'Checklist Anual Agendado. Verificar superaquecimento, reaperto de painel e troca de filtros.',
     tecnicoId: null, 
-    clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
+    clienteId: 'cli-1', 
     clienteNome: 'Padaria Pão Quente',
     dataAbertura: '02/11/2025'
   },
@@ -165,7 +181,7 @@ export const mockOrdensServico: OrdemServico[] = [
     status: 'Pendente',
     detalhes: 'Equipamento parou subitamente.',
     tecnicoId: null, 
-    clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
+    clienteId: 'cli-1', 
     clienteNome: 'Padaria Pão Quente',
     dataAbertura: '04/11/2025'
   },

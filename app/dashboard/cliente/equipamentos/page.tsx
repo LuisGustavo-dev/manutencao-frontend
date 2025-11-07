@@ -1,13 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { mockEquipamentos, mockClientes } from '@/lib/mock-data';
+import { useState, useEffect, useMemo } from 'react';
+// import { mockEquipamentos, mockClientes } from '@/lib/mock-data'; // (Removido)
 import type { Equipamento } from '@/lib/mock-data'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/app/contexts/authContext'; // Importar Auth para pegar o ID do cliente (simulado)
+import { useAuth } from '@/app/contexts/authContext';
 import { useRouter } from 'next/navigation';
 import { 
   AlertCircle, 
@@ -16,53 +16,119 @@ import {
   Droplet,
   Wind,
   Bolt,
-  Package
+  Package,
+  Loader2 
 } from 'lucide-react';
+import toast from 'react-hot-toast'; 
 
 export default function ClienteEquipamentosPage() {
   const [baseUrl, setBaseUrl] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const { user } = useAuth(); // <-- Pega o usuário logado
+  const { user, token } = useAuth(); 
   const router = useRouter();
+
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     setBaseUrl(window.location.origin);
-  }, []);
 
-  // --- LÓGICA DE FILTRO DO CLIENTE ---
-  // (Simula que o 'user.id' do authContext está ligado ao 'clienteId' do equipamento)
-  // (No nosso mock, 'u1' (cliente) não bate com 'cli-1' (clienteId), então vamos forçar)
-  const meuClienteId = 'cli-1'; // <-- Simulação
+    const fetchEquipamentos = async () => {
+      if (!token) {
+        setIsLoading(false);
+        toast.error("Sessão expirada. Faça login novamente.");
+        return;
+      }
 
-  const filteredEquipamentos = mockEquipamentos.filter(eq => {
-    // 1. Filtra SÓ os equipamentos deste cliente
-    if (eq.clienteId !== meuClienteId) {
-      return false;
-    }
-    
-    const status = typeof window !== 'undefined' ? 
-                   localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                   eq.statusManutencao;
-                   
-    const statusMatch = statusFilter === 'all' || status === statusFilter;
-    
-    const searchMatch = searchTerm === '' ||
-      eq.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      eq.tipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase());
+      try {
+        setIsLoading(true);
+        const response = await fetch('http://localhost:3340/equipamento', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
 
-    return statusMatch && searchMatch;
-  });
+        if (!response.ok) {
+          throw new Error('Falha ao buscar equipamentos');
+        }
+
+        const dataFromApi = await response.json();
+
+        const transformedData: Equipamento[] = dataFromApi.map((apiEq: any) => {
+          const statusManutencao: 'Disponível' | 'Manutencao' = 
+            apiEq.status === 'manutencao' ? 'Manutencao' : 'Disponível';
+
+          return {
+            id: String(apiEq.id),
+            clienteId: apiEq.user ? String(apiEq.user.id) : null,
+            
+            // Campo 'nome' mantido apenas para satisfazer o tipo, mas não será usado
+            nome: apiEq.nome || 'Equipamento s/ nome', 
+            
+            tipo: apiEq.tipo || 'Climatização',
+            tipoCondensador: apiEq.tipoCondensador || 'N/A',
+            tipoEvaporador: apiEq.tipoEvaporador || 'N/A',
+            valvulaExpansao: apiEq.valvulaExpansao || 'N/A',
+            
+            statusManutencao: statusManutencao,
+            modeloCompressor: apiEq.modeloCompressor || 'N/A',
+            tipoGas: apiEq.tipoGas || 'N/A',
+            tipoOleo: apiEq.tipoOleo || 'N/A',
+            tensao: String(apiEq.tensao) + 'V', 
+            aplicacao: apiEq.aplicacao || 'N/A',
+          };
+        });
+
+        setEquipamentos(transformedData);
+
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao carregar dados.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEquipamentos();
+  }, [token]); 
+
+  // --- LÓGICA DE FILTRO ATUALIZADA ---
+  const filteredEquipamentos = useMemo(() => {
+    return equipamentos.filter(eq => {
+      
+      const status = typeof window !== 'undefined' ? 
+                       localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
+                       eq.statusManutencao;
+                      
+      const statusMatch = statusFilter === 'all' || status === statusFilter;
+      
+      // --- ATUALIZADO: Pesquisa por ID, Tipo ou Compressor ---
+      const searchMatch = searchTerm === '' ||
+        eq.id.toLowerCase().includes(searchTerm.toLowerCase()) || // <-- MUDADO
+        eq.tipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase());
+
+      return statusMatch && searchMatch;
+    });
+  }, [equipamentos, searchTerm, statusFilter]);
 
   const handleClientAction = (id: string) => {
-    // O cliente é enviado para a página PÚBLICA do equipamento
     router.push(`/equipamento?id=${id}`);
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-3 text-muted-foreground">Carregando seus equipamentos...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* 1. CABEÇALHO DA PÁGINA (Sem botão "Novo") */}
+      {/* 1. CABEÇALHO DA PÁGINA */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Meus Equipamentos</h2>
@@ -78,7 +144,8 @@ export default function ClienteEquipamentosPage() {
           <div className="relative w-full md:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input 
-              placeholder="Pesquisar por nome, tipo..." 
+              // --- ATUALIZADO: Placeholder ---
+              placeholder="Pesquisar por ID, tipo..." 
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -102,18 +169,20 @@ export default function ClienteEquipamentosPage() {
         
         {filteredEquipamentos.map((eq) => {
           const status = typeof window !== 'undefined' ? 
-                                localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                                eq.statusManutencao;
+                           localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
+                           eq.statusManutencao;
 
           return (
             <Card key={eq.id} className="flex flex-col hover:shadow-lg transition-shadow">
               
               <CardHeader>
-                {/* O Cliente não precisa do menu dropdown, só do status */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="truncate">{eq.nome}</CardTitle>
-                    <CardDescription>{eq.tipo}</CardDescription>
+                    
+                    {/* --- ATUALIZADO: Título e Descrição --- */}
+                    <CardTitle className="truncate">{eq.tipo}</CardTitle>
+                    <CardDescription>ID: {eq.id}</CardDescription>
+                  
                   </div>
                   {status === 'Disponível' ? (
                     <Badge variant="outline" className="text-green-600 border-green-600">Disponível</Badge>
@@ -130,7 +199,6 @@ export default function ClienteEquipamentosPage() {
                 <div className="flex items-center gap-2"><Bolt className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tensao}</span></div>
               </CardContent>
               
-              {/* O Cliente VÊ o rodapé de ação */}
               <CardFooter>
                 {status === 'Disponível' ? (
                   <Button 
@@ -157,14 +225,15 @@ export default function ClienteEquipamentosPage() {
           );
         })}
 
-        {filteredEquipamentos.length === 0 && (
+        {!isLoading && filteredEquipamentos.length === 0 && (
           <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-12">
-            <p>Nenhum equipamento encontrado.</p>
+            <Package className="h-10 w-10 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold">Nenhum equipamento encontrado</h3>
+            <p>Você ainda não possui equipamentos cadastrados ou eles não correspondem ao filtro.</p>
           </div>
         )}
       </div>
 
-      {/* O Cliente NÃO precisa dos modais de Admin/Manutentor */}
     </div>
   );
 }

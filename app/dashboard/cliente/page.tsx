@@ -236,7 +236,7 @@ export default function ClienteHomePage() {
               </TableBody>
             </Table>
             <Button variant="link" className="px-0 pt-4" asChild>
-              <Link href="/dashboard/ordens-servico">Ver histórico completo &rarr;</Link>
+              <Link href="/dashboard/cliente/ordens-servico">Ver histórico completo &rarr;</Link>
             </Button>
           </CardContent>
         </Card>
@@ -264,7 +264,7 @@ export default function ClienteHomePage() {
               </div>
             ))}
              <Button variant="link" className="px-0 pt-2" asChild>
-              <Link href="/dashboard/ordens-servico">Ver calendário completo &rarr;</Link>
+              <Link href="/dashboard/cliente/ordens-servico">Ver calendário completo &rarr;</Link>
             </Button>
           </CardContent>
         </Card>

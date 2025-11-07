@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/authContext';
-import { mockClientes, mockEquipamentos, mockOrdensServico } from '@/lib/mock-data';
+// --- mockClientes foi REMOVIDO ---
+import { mockEquipamentos, mockOrdensServico } from '@/lib/mock-data';
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -25,15 +26,14 @@ import {
   Loader2,
   Package,
   ClipboardList,
-  HardHat,
   MessageSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
-export default function ClientePerfilPage() {
-  const { user } = useAuth();
+export default function PerfilPage() { // Renomeado de ClientePerfilPage para PerfilPage (genérico)
+  const { user, role } = useAuth(); // <-- Pega o usuário e a role direto do Auth
   const [isLoading, setIsLoading] = useState(false);
   
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -41,26 +41,26 @@ export default function ClientePerfilPage() {
   const [confirmaSenha, setConfirmaSenha] = useState('');
 
   // --- LÓGICA DE INFORMAÇÕES ÚTEIS ---
-  const [empresa, setEmpresa] = useState<typeof mockClientes[0] | undefined>(undefined);
+  // (Removemos o 'empresa', pois 'user' já tem os dados)
   const [equipamentosCount, setEquipamentosCount] = useState(0);
   const [chamadosAbertosCount, setChamadosAbertosCount] = useState(0);
 
   useEffect(() => {
-    if (user) {
-      const foundEmpresa = mockClientes.find(c => c.id === user.clienteId);
-      setEmpresa(foundEmpresa);
-
-      if (foundEmpresa) {
-        const equipamentos = mockEquipamentos.filter(e => e.clienteId === foundEmpresa.id);
-        setEquipamentosCount(equipamentos.length);
-        
-        const chamados = mockOrdensServico.filter(os => 
-          os.clienteId === foundEmpresa.id && os.status !== 'Concluída'
-        );
-        setChamadosAbertosCount(chamados.length);
-      }
+    // Apenas executa os contadores se o usuário for um Cliente
+    if (user && role === 'Cliente') {
+      
+      // O 'user.id' do Auth (ex: 17) é usado para filtrar os mocks
+      // NOTA: Se o seu mock-data não tiver equipamentos para o user.id real,
+      // isso retornará 0. Você precisará de uma API para isso no futuro.
+      const equipamentos = mockEquipamentos.filter(e => e.clienteId === user.id);
+      setEquipamentosCount(equipamentos.length);
+      
+      const chamados = mockOrdensServico.filter(os => 
+        os.clienteId === user.id && os.status !== 'Concluída'
+      );
+      setChamadosAbertosCount(chamados.length);
     }
-  }, [user]); // Roda quando o usuário é carregado
+  }, [user, role]); // Roda quando o usuário é carregado
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,8 +71,10 @@ export default function ClientePerfilPage() {
       setIsLoading(false);
       return;
     }
-    // ... (outras validações)
-
+    
+    // TODO: Implementar chamada de API para POST /user/change-password
+    // A API deve receber { senhaAtual, novaSenha }
+    
     setTimeout(() => {
       console.log("Alterando senha...", { senhaAtual, novaSenha });
       toast.success("Senha alterada com sucesso!");
@@ -83,7 +85,7 @@ export default function ClientePerfilPage() {
     }, 1000);
   };
 
-  if (!user) {
+  if (!user) { // Mostra o loading enquanto o user/me do AuthProvider é resolvido
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -91,24 +93,40 @@ export default function ClientePerfilPage() {
     );
   }
 
+  // Helper de Avatar (Corrigido)
+  const getFallback = (nome: string) => {
+    // 1. Verifica se 'nome' é uma string válida
+    if (!nome || typeof nome !== 'string') {
+      return 'U'; // "U" de Usuário (Fallback Padrão)
+    }
+
+    // 2. Se for válida, continua a lógica
+    const parts = nome.split(' ');
+    if (parts.length > 1 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return nome.substring(0, 2).toUpperCase();
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Meu Perfil</h2>
       
-      {/* Container principal de coluna única, centralizado e com largura máxima */}
       <div className="mx-auto space-y-6">
 
         <div className='grid grid-cols-1 xl:grid-cols-3 gap-6'>
-          {/* Dados do cliente */}
+          
+          {/* Card 1: Dados do Usuário (Para todos) */}
           <Card className='grid xl:col-span-1'>
             <CardContent className="pt-6 flex flex-col items-center text-center">
               <Avatar className="h-24 w-24 mb-4">
                 <AvatarFallback className="text-3xl bg-primary/10 text-primary">
-                  {user.nome.charAt(0).toUpperCase()}
+                  {getFallback(user.nome)}
                 </AvatarFallback>
               </Avatar>
               <h3 className="text-2xl font-semibold">{user.nome}</h3>
               <p className="text-muted-foreground">{user.email}</p>
+              <Badge variant="outline" className="mt-2">{role}</Badge>
             </CardContent>
             <Separator />
             <CardFooter className="p-4">
@@ -120,8 +138,8 @@ export default function ClientePerfilPage() {
             </CardFooter>
           </Card>
 
-          {/* Dados da empresa */}
-          {empresa ? (
+          {/* Card 2: Dados da Empresa (Apenas se for Cliente) */}
+          {role === 'Cliente' && (
             <Card className='grid xl:col-span-2'>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -132,19 +150,21 @@ export default function ClientePerfilPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* --- DADOS VINDOS DIRETAMENTE DO 'user' --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <Label>Nome Fantasia</Label>
-                    <p className="font-semibold text-lg">{empresa.nomeFantasia}</p>
+                    {/* A API retorna 'name', não 'nomeFantasia' */}
+                    <p className="font-semibold text-lg">{user.nome}</p> 
                   </div>
                   <div className="space-y-1">
                     <Label>CNPJ</Label>
-                    <p className="font-semibold text-lg">{empresa.cnpj}</p>
+                    <p className="font-semibold text-lg">{user.cnpj || 'Não cadastrado'}</p>
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label>Razão Social</Label>
-                  <p className="text-muted-foreground">{empresa.razaoSocial}</p>
+                  <p className="text-muted-foreground">{user.razaoSocial || 'Não cadastrado'}</p>
                 </div>
               </CardContent>
               <CardFooter>
@@ -157,10 +177,18 @@ export default function ClientePerfilPage() {
                 </Alert>
               </CardFooter>
             </Card>
-          ) : (
+          )}
+
+           {/* Se não for cliente, mostra um espaço reservado ou nada */}
+           {role !== 'Cliente' && (
             <Card className='grid xl:col-span-2'>
-              <CardContent className="p-6">
-                <p>Nenhuma empresa vinculada a este usuário.</p>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5" /> Conta de Equipe
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Você está logado como {role}. Os dados de clientes não se aplicam à sua conta.</p>
               </CardContent>
             </Card>
           )}
@@ -169,40 +197,47 @@ export default function ClientePerfilPage() {
         
         <div className='grid grid-cols-1 xl:grid-cols-3 gap-6'>
 
-          {/* Atividade */}
-          <Card className='grid xl:col-span-2'>
-            <CardHeader>
-              <CardTitle>Minha Atividade</CardTitle>
-              <CardDescription>
-                Resumo da sua conta e equipamentos vinculados.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
-                <div className="flex items-center gap-3">
-                  <Package className="h-5 w-5 text-primary" />
-                  <span className="font-medium">Equipamentos Monitorados</span>
+          {/* Card 3: Atividade (Apenas se for Cliente) */}
+          {role === 'Cliente' && (
+            <Card className='grid xl:col-span-2'>
+              <CardHeader>
+                <CardTitle>Minha Atividade</CardTitle>
+                <CardDescription>
+                  Resumo da sua conta e equipamentos vinculados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Equipamentos Monitorados</span>
+                  </div>
+                  <span className="font-bold text-lg">{equipamentosCount}</span>
                 </div>
-                <span className="font-bold text-lg">{equipamentosCount}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
-                <div className="flex items-center gap-3">
-                  <ClipboardList className="h-5 w-5 text-primary" />
-                  <span className="font-medium">Meus Chamados Abertos</span>
+                <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
+                  <div className="flex items-center gap-3">
+                    <ClipboardList className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Meus Chamados Abertos</span>
+                  </div>
+                  <span className="font-bold text-lg">{chamadosAbertosCount}</span>
                 </div>
-                <span className="font-bold text-lg">{chamadosAbertosCount}</span>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" asChild>
-                <Link href="/dashboard/cliente/equipamentos">
-                  Ver todos os equipamentos
-                </Link>
-              </Button>
-            </CardFooter>
-          </Card>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" asChild>
+                  <Link href="/dashboard/cliente/equipamentos">
+                    Ver todos os equipamentos
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {/* Se não for cliente, mostra um espaço reservado */}
+          {role !== 'Cliente' && (
+            <div className="xl:col-span-2" />
+          )}
           
-          {/* Senha */}
+          {/* Card 4: Senha (Para todos) */}
           <Card className='grid xl:col-span-1'>
             <form onSubmit={handlePasswordSubmit}>
               <CardHeader>
@@ -258,8 +293,6 @@ export default function ClientePerfilPage() {
 
         </div>
         
-        
-
       </div>
     </div>
   );

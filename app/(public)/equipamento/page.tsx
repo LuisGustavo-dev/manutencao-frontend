@@ -1,8 +1,10 @@
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'; // Importado usePathname
-import { mockEquipamentos, mockOrdensServico } from '@/lib/mock-data';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+// import { mockEquipamentos, mockOrdensServico, mockHistorico } from '@/lib/mock-data'; // <-- MOCKS REMOVIDOS
+import type { Equipamento } from '@/lib/mock-data'; // <-- Importa o TIPO
+import { useAuth } from '@/app/contexts/authContext'; // <-- Importa o Auth real
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,47 +33,34 @@ import {
   History,
   CheckCircle,
   AlertCircle,
-  Loader2 // Importado Loader2
+  Loader2 
 } from "lucide-react";
 import toast from 'react-hot-toast'; 
 
 import { FormChecklistCliente } from './components/FormChecklistCliente';
 import { FormChecklistManutentorCorretiva } from './components/FormChecklistManutentorCorretiva';
+import Link from 'next/link';
 
-// (Mocks locais para a página funcionar - como no seu código)
-function useAuthRole() { 
-  const [role, setRole] = useState<string | null>(null);
-  useEffect(() => { setRole(localStorage.getItem('user_role')); }, []);
-  return role;
-}
-function useEquipmentStatus(id: string | null) {
-  const eq = mockEquipamentos.find(e => e.id === id);
-  const [status, setStatus] = useState(eq?.statusManutencao || 'Disponível'); 
-  useEffect(() => {
-    if (id) {
-      const storedStatus = localStorage.getItem(`status_${id}`);
-      if (storedStatus) setStatus(storedStatus as any);
-    }
-  }, [id]);
-  const updateStatus = (newStatus: 'Disponível' | 'Manutencao') => { 
-    if (id) {
-      localStorage.setItem(`status_${id}`, newStatus);
-      setStatus(newStatus);
-    }
-  };
-  return { status, updateStatus };
-}
-const mockHistorico = [
-  { id: 1, data: "02/11/25", tipo: "Corretiva", tecnico: "Luis G.", status: "Concluída" },
-  { id: 2, data: "28/10/25", tipo: "Preventiva", tecnico: "Ana S.", status: "Concluída" },
-  { id: 3, data: "25/10/25", tipo: "Corretiva", tecnico: "Cliente", status: "Aberta" },
-];
-// (Fim dos Mocks)
+// --- TIPO PARA O HISTÓRICO VINDO DA API ---
+type ApiHistoricoItem = {
+  id: number;
+  data: string;
+  tipo: string;
+  tecnico: string; // API não fornece, será 'N/A'
+  status: string;
+};
+
+// --- (Fim dos Mocks) ---
 
 
 export default function EquipamentoPageWrapper() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Carregando...</div>}>
+    // O Suspense é necessário para useSearchParams()
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
       <EquipamentoPage />
     </Suspense>
   );
@@ -80,20 +69,110 @@ export default function EquipamentoPageWrapper() {
 function EquipamentoPage() {
   const searchParams = useSearchParams();
   const router = useRouter(); 
-  const pathname = usePathname(); // Hook para detectar mudança de página
+  const pathname = usePathname(); 
   const id = searchParams.get('id');
   
-  const userRole = useAuthRole();
-  const { status, updateStatus } = useEquipmentStatus(id);
+  const { role, token } = useAuth(); // <-- Usa o Auth real
 
-  const equipamento = mockEquipamentos.find((e) => e.id === id);
-  const osAtiva = mockOrdensServico.find(os => os.equipamentoId === id && os.status !== 'Concluída');
+  // --- ESTADOS VINDOS DA API ---
+  const [equipamento, setEquipamento] = useState<Equipamento | null>(null);
+  const [historico, setHistorico] = useState<ApiHistoricoItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- ESTADO DE STATUS LOCAL (como o mock useEquipmentStatus fazia) ---
+  const [status, setStatus] = useState<'Disponível' | 'Manutencao' | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<'cliente' | 'corretiva' | null>(null);
   
-  // Estado de loading para navegação
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
+
+  // --- FETCH DOS DADOS ---
+  useEffect(() => {
+    if (!id || !token) {
+      setIsLoading(false);
+      setError("ID do equipamento ou token de autenticação não encontrado.");
+      return;
+    }
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`http://localhost:3340/equipamento/${id}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha ao buscar dados do equipamento.');
+        }
+
+        const apiData = await response.json();
+
+        // --- TRANSFORMAÇÃO DOS DADOS DA API ---
+        
+        // 1. Mapeia o Status
+        const statusManutencao: 'Disponível' | 'Manutencao' = 
+          apiData.status === 'disponivel' ? 'Disponível' : 'Manutencao';
+        
+        // 2. Transforma o Equipamento para o tipo do Frontend
+        const transformedEq: Equipamento = {
+          id: String(apiData.id),
+          modeloCompressor: apiData.modeloCompressor,
+          tipoGas: apiData.tipoGas,
+          tipoOleo: apiData.tipoOleo,
+          tensao: `${apiData.tensao}V`, // Converte número para string
+          aplicacao: apiData.aplicacao,
+          statusManutencao: statusManutencao,
+          
+          // --- CAMPOS FALTANTES (Valores Padrão) ---
+          // O frontend espera estes campos, mas a API não os enviou
+          nome: apiData.nome || `Equipamento #${apiData.id}`, // <-- API PRECISA ENVIAR
+          tipo: apiData.tipo || 'Não especificado',           // <-- API PRECISA ENVIAR
+          clienteId: apiData.clienteId || null,               // <-- API PRECISA ENVIAR
+          tipoCondensador: apiData.tipoCondensador || 'N/A',
+          tipoEvaporador: apiData.tipoEvaporador || 'N/A',
+          valvulaExpansao: apiData.valvulaExpansao || 'N/A',
+        };
+        
+        // 3. Transforma o Histórico
+        const transformedHistory: ApiHistoricoItem[] = apiData.chamadosFechados
+          .map((item: any) => ({
+            id: item.id,
+            data: new Date(item.horaAbertura).toLocaleDateString('pt-BR'),
+            tipo: item.tipo, // Ex: "Corretivo"
+            tecnico: item.tecnicoNome || 'N/A', // API não fornece o técnico
+            status: item.status, // Ex: "Finalizado"
+          }))
+          .reverse(); // Mostra os mais recentes primeiro
+
+        // 4. Define os estados
+        setEquipamento(transformedEq);
+        setHistorico(transformedHistory.slice(0, 3)); // Pega apenas os 3 últimos
+        
+        // 5. Define o status local (para os botões)
+        // (Verifica o localStorage primeiro, como o mock fazia)
+        const storedStatus = localStorage.getItem(`status_${id}`);
+        if (storedStatus) {
+          setStatus(storedStatus as any);
+        } else {
+          setStatus(statusManutencao);
+        }
+
+      } catch (err: any) {
+        setError(err.message || "Erro ao carregar dados.");
+        toast.error(err.message || "Erro ao carregar dados.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, token]); // Recarrega se o ID ou o token mudarem
 
   // Limpa o loading quando a nova página carregar
   useEffect(() => {
@@ -102,7 +181,7 @@ function EquipamentoPage() {
 
   // Função wrapper para navegação com loading
   const handleNavigate = (path: string) => {
-    if (loadingPath === path) return; // Já está carregando
+    if (loadingPath === path) return; 
     setLoadingPath(path);
     router.push(path);
   };
@@ -112,30 +191,50 @@ function EquipamentoPage() {
     setIsModalOpen(true);
   };
 
+  // --- Funções de Ação (Simulando o mock, salvando no localStorage) ---
+  // (O ideal seria fazer um POST/PATCH para a API aqui)
   const handleSolicitarManutencao = () => {
-    updateStatus('Manutencao'); // Corrigido
+    if (id) localStorage.setItem(`status_${id}`, 'Manutencao');
+    setStatus('Manutencao'); 
     toast.success('Chamado aberto! Em breve um técnico será notificado.');
     setIsModalOpen(false);
   };
 
   const handleConcluirManutencao = () => {
-    updateStatus('Disponível');
+    if (id) localStorage.setItem(`status_${id}`, 'Disponível');
+    setStatus('Disponível');
     toast.success('Manutenção concluída! O equipamento foi liberado.');
     setIsModalOpen(false);
   };
 
-  if (!equipamento) {
+  // --- RENDERIZAÇÃO DE LOADING E ERRO ---
+  if (isLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center">
-        <h1 className="text-2xl font-semibold">Equipamento não encontrado.</h1>
+         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+         <p className="mt-4 text-muted-foreground">Carregando dados do equipamento...</p>
       </main>
     );
   }
 
+  if (error || !equipamento) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-semibold">Equipamento não encontrado</h1>
+        <p className="text-muted-foreground">{error || "O ID solicitado não existe."}</p>
+        <Button variant="outline" asChild className="mt-6">
+          <Link href="/dashboard">Voltar ao Dashboard</Link>
+        </Button>
+      </main>
+    );
+  }
+  // --- FIM DA RENDERIZAÇÃO DE LOADING E ERRO ---
+
   // Define os paths de navegação
-  const clientePath = `/dashboard/cliente/ordens-servico-detalhe?id=${osAtiva?.id}`;
-  const manutentorPath = `/dashboard/manutentor/ordens-servico-detalhe?id=${osAtiva?.id}`; // Exemplo
-  const historicoPath = `/dashboard/${userRole?.toLowerCase()}/equipamentos/historico?id=${equipamento.id}`; // Exemplo
+  // Se o status é 'Manutencao', assumimos que há uma OS ativa (mesmo sem ID da API)
+  const osAtiva = status === 'Manutencao'; 
+  const historicoPath = `/dashboard/${role?.toLowerCase()}/equipamentos/historico?id=${equipamento.id}`; 
   
   return (
     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -143,7 +242,9 @@ function EquipamentoPage() {
         
         <div className="space-y-2">
           <Badge>{equipamento.tipo}</Badge>
+          {/* O nome vem do dado transformado (pode ser "Equipamento #9") */}
           <h1 className="text-3xl font-bold tracking-tight">{equipamento.nome}</h1>
+          <p className="text-lg text-muted-foreground">ID: {equipamento.id}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -171,7 +272,7 @@ function EquipamentoPage() {
               </CardContent>
               
               <CardFooter>
-                {userRole === 'Cliente' && (
+                {role === 'Cliente' && (
                   <>
                     {status === 'Disponível' ? (
                       <Button variant="destructive" size="lg" className="w-full" onClick={() => openModal('cliente')}>
@@ -182,25 +283,25 @@ function EquipamentoPage() {
                         variant="outline" 
                         size="lg" 
                         className="w-full" 
-                        onClick={() => handleNavigate(clientePath)}
-                        disabled={loadingPath === clientePath}
+                        onClick={() => alert('Navegar para OS Ativa (Cliente)')} // Substitua pelo Href
+                        disabled={loadingPath === 'clientePath'} // Exemplo
                       >
-                        {loadingPath === clientePath ? (
+                        {loadingPath === 'clientePath' ? (
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         ) : (
                           <History className="mr-2 h-5 w-5" />
                         )}
-                        Acompanhar Chamado (OS: {osAtiva?.id})
+                        Acompanhar Chamado Ativo
                       </Button>
                     )}
                   </>
                 )}
 
-                {(userRole === 'Manutentor' || userRole === 'Admin') && (
+                {(role === 'Manutentor' || role === 'Admin') && (
                   <div className="flex flex-col sm:flex-row gap-4 w-full">
-                    {status === 'Manutencao' ? ( // Corrigido
+                    {status === 'Manutencao' ? ( 
                       <Button variant="destructive" size="lg" className="flex-1" onClick={() => openModal('corretiva')}>
-                        <HardHat className="mr-2 h-5 w-5" /> Realizar Manutenção (OS: {osAtiva?.id})
+                        <HardHat className="mr-2 h-5 w-5" /> Realizar Manutenção
                       </Button>
                     ) : (
                       <Button variant="secondary" size="lg" className="flex-1" onClick={() => openModal('corretiva')}>
@@ -210,7 +311,7 @@ function EquipamentoPage() {
                   </div>
                 )}
                 
-                {!userRole && (
+                {!role && (
                   <Button asChild className="w-full"><a href="/login">Fazer Login</a></Button>
                 )}
               </CardFooter>
@@ -268,17 +369,26 @@ function EquipamentoPage() {
                 <CardDescription>Últimas 3 intervenções</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {mockHistorico.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                      <History className="h-4 w-4 text-primary" />
+                
+                {/* --- HISTÓRICO VINDO DA API --- */}
+                {historico.length > 0 ? (
+                  historico.map((item) => (
+                    <div key={item.id} className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                        <History className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">{item.tipo} ({item.status})</p>
+                        <p className="text-sm text-muted-foreground">{item.data} - por {item.tecnico}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold">{item.tipo} ({item.status})</p>
-                      <p className="text-sm text-muted-foreground">{item.data} - por {item.tecnico}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum histórico de manutenção encontrado.
+                  </p>
+                )}
+
                 <Separator />
                 <Button 
                   variant="outline" 
