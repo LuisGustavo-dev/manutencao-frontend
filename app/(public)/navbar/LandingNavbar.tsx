@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react'; // <-- Importar React
+import React from 'react'; // <-- Removido 'useState' e 'useEffect'
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/app/contexts/authContext'; // <-- 1. Importar o hook de Auth
-import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/app/contexts/authContext';
+// Removido: useRouter, usePathname
 
-// --- 2. Importar tudo para o Dropdown do Usuário ---
+// --- Importações do Dropdown do Usuário ---
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,109 +17,36 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import toast from "react-hot-toast";
+
+// --- Ícones ATUALIZADOS ---
+// Removidos todos os ícones de menu desnecessários
 import { 
   LogOut, 
-  Wrench, 
-  Package, 
-  Home, 
-  Users, 
-  User as UserIcon, 
-  Loader2, 
-  Settings, 
-  Package2, // (ícone do logo original)
-  ShieldCheck
+  LayoutDashboard // <-- Ícone para o Dashboard
 } from "lucide-react"; 
-// --- Fim das novas importações ---
+// --- Fim das importações de ícones ---
 
 
-// --- 3. Copiar a lógica de menu da AppSidebar ---
-// (Isso garante que os menus sejam idênticos)
-
-const fullMenuConfig = [
-    {
-        label: "Painel",
-        items: [
-            { name: "Visão Geral (Admin)", icon: Home, path: "/dashboard/admin", allowedRoles: ['Admin'] },
-            { name: "Visão Geral (Man.)", icon: Home, path: "/dashboard/manutentor", allowedRoles: ['Manutentor'] },
-            { name: "Meus Chamados", icon: Home, path: "/dashboard/cliente", allowedRoles: ['Cliente'] },
-        ]
-    },
-    {
-        label: "Gestão",
-        items: [
-            { name: "Ordens de Serviço", icon: Wrench, path: "/dashboard/ordens-servico", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-            { name: "Equipamentos", icon: Package, path: "/dashboard/equipamentos", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-            { name: "Clientes", icon: Users, path: "/dashboard/clientes", allowedRoles: ['Admin', 'Manutentor'] },
-        ]
-    },
-    {
-        label: "Administração", 
-        items: [
-            { name: "Gerenciar Usuários", icon: UserIcon, path: "/dashboard/admin/usuarios", allowedRoles: ['Admin'] },
-            { name: "Configurações", icon: Settings, path: "/dashboard/admin/settings", allowedRoles: ['Admin'] },
-            { name: "Meu Perfil", icon: UserIcon, path: "/dashboard/perfil", allowedRoles: ['Admin', 'Manutentor', 'Cliente'] },
-        ]
-    }
-];
-
-const availableRoles = [
-    { id: 'Admin', nome: 'Admin (Simular)' },
-    { id: 'Manutentor', nome: 'Manutentor (Simular)' },
-    { id: 'Cliente', nome: 'Cliente (Simular)' },
-];
-// --- Fim da lógica de menu ---
+// --- Lógica de menu ANTIGA (fullMenuConfig, availableRoles, etc.) REMOVIDA ---
 
 
 export function LandingNavbar() {
-  // --- 4. Hooks para o menu funcionar ---
+  // --- Hooks simplificados ---
   const { token, user, role, logout } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
-  const [loadingPath, setLoadingPath] = useState<string | null>(null);
-
-  // --- 5. Lógica de helpers copiada da AppSidebar ---
-  const currentRole = role || "Cliente"; 
-
-  const accessibleMenuGroups = fullMenuConfig
-      .map(group => ({
-          ...group,
-          items: group.items.filter(item => item.allowedRoles.includes(currentRole)),
-      }))
-      .filter(group => group.items.length > 0);
-
-  const handleLogout = () => { logout(); toast.success("Você saiu com sucesso!"); };
-
-  const handleClick = (item: any) => {
-      if (item.path === pathname || loadingPath) return;
-      if (item.disabled) toast.error(`${item.name} em construção!`);
-      else if (item.action) item.action();
-      else if (item.path) { setLoadingPath(item.path); router.push(item.path); }
+  
+  // --- Lógica de helpers simplificada ---
+  // (Funções handleClick, accessibleMenuGroups, renderDropdownItem, etc. REMOVIDAS)
+  
+  const handleLogout = () => { 
+    logout(); 
+    toast.success("Você saiu com sucesso!"); 
   };
 
-  const atalhos = [{ name: "Sair", icon: LogOut, action: handleLogout }];
-  
   const userName = user?.nome || "Usuário";
-  const roleDisplayName = availableRoles.find(r => r.id === currentRole)?.nome.replace(" (Simular)", "") || currentRole;
+  // Mantida a lógica de exibição de nome/email
+  const roleDisplayName = role === 'Admin' ? 'Admin' : role === 'Manutentor' ? 'Manutentor' : 'Cliente';
   const userEmail = user?.email || `Cargo: ${roleDisplayName}`;
   const userFallback = userName.charAt(0).toUpperCase();
-
-  const renderDropdownItem = (item: any) => {
-      const Icon = item.icon;
-      const isLoading = loadingPath === item.path;
-      const isActive = pathname === item.path;
-
-      return (
-          <DropdownMenuItem
-              key={item.name}
-              onClick={() => handleClick(item)}
-              className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
-              disabled={isLoading || item.disabled}
-          >
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icon className="mr-2 h-4 w-4" />}
-              {item.name}
-          </DropdownMenuItem>
-      );
-  };
   // --- Fim da lógica de helpers ---
 
 
@@ -145,7 +72,7 @@ export function LandingNavbar() {
         </h1>
       </div>
 
-      {/* --- 6. NAV CONDICIONAL --- */}
+      {/* --- NAV CONDICIONAL --- */}
       <div className="ml-auto flex gap-4 sm:gap-6 items-center">
         {token ? (
           <>
@@ -159,7 +86,7 @@ export function LandingNavbar() {
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64" align="end" forceMount> {/* <-- Um pouco mais largo */}
+              <DropdownMenuContent className="w-64" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{userName}</p>
@@ -168,16 +95,23 @@ export function LandingNavbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 
-                {/* Renderiza o menu exatamente como na sidebar */}
-                {accessibleMenuGroups.map((group, groupIndex) => (
-                    <React.Fragment key={group.label}>
-                        <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                        {group.items.map((item) => renderDropdownItem(item))}
-                        {groupIndex < accessibleMenuGroups.length - 1 && <DropdownMenuSeparator />}
-                    </React.Fragment>
-                ))}
+                {/* --- MENU ATUALIZADO E SIMPLIFICADO --- */}
+                
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/dashboard">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                </DropdownMenuItem>
+                
                 <DropdownMenuSeparator />
-                {atalhos.map(renderDropdownItem)}
+
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+                
+                {/* --- FIM DO MENU ATUALIZADO --- */}
 
               </DropdownMenuContent>
             </DropdownMenu>

@@ -42,15 +42,8 @@ const fullMenuConfig = [
         items: [
             { name: "Ordens de Serviço", icon: Wrench, path: "/dashboard/manutentor/ordens-servico", allowedRoles: ['Manutentor', 'Admin'] },
             { name: "Equipamentos", icon: Package, path: "/dashboard/manutentor/equipamentos", allowedRoles: ['Manutentor', 'Admin'] },
-            { name: "Clientes", icon: Users, path: "/dashboard/manutentor/clientes", allowedRoles: ['Manutentor', 'Admin'] },
         ]
     },
-    {
-        label: "Conta", 
-        items: [
-            { name: "Meu Perfil", icon: UserIcon, path: "/dashboard/manutentor/perfil", allowedRoles: ['Manutentor', 'Admin'] },
-        ]
-    }
 ];
 
 export default function ManutentorNavbar() {
