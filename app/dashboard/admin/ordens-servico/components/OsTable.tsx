@@ -29,7 +29,7 @@ export function OsTable({ ordens, role, onAssignClick }: OsTableProps) {
   const router = useRouter();
 
   const goToDetalhe = (id: string) => {
-    router.push(`/dashboard/ordens-servico-detalhe?id=${id}`);
+    router.push(`/dashboard/admin/ordens-servico-detalhe?id=${id}`);
   };
 
   const getStatusVariant = (status: string): "destructive" | "secondary" | "outline" => {
