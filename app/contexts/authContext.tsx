@@ -1,62 +1,107 @@
 'use client';
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-// Importa os dados e o tipo do seu mock
-import { mockUsuarios } from '@/lib/mock-data';
-import type { Usuario } from '@/lib/mock-data'; // <-- Usa o tipo 'Usuario'
+import type { Usuario } from '@/lib/mock-data'; // Continua usando o tipo
+
+// --- Helper para mapear roles do backend para o frontend ---
+// (Isso estava na sua LoginPage, mas o Context é um lugar melhor)
+type AppRole = 'Admin' | 'Manutentor' | 'Cliente';
+
+const mapApiRoleToAppRole = (apiRole: string): AppRole => {
+  const role = apiRole.toLowerCase();
+  if (role === 'admin') return 'Admin';
+  if (role === 'technical') return 'Manutentor';
+  return 'Cliente'; // 'user' e qualquer outro
+};
 
 interface AuthContextType {
-  token: string | null | undefined; // undefined = carregando
-  user: Usuario | null; // <-- Usa o tipo 'Usuario' completo
-  role: string | null;
-  setRole: (role: string) => void;
+  token: string | null;
+  user: Usuario | null;
+  role: AppRole | null; // <-- Tipo mais forte
+  login: (data: { user: Usuario, accessToken: string }) => void; // <-- Nova função de login
   logout: () => void;
+  isLoading: boolean; // <-- Estado de carregamento
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null | undefined>(undefined); 
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<Usuario | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Começa carregando
   const router = useRouter();
 
+  // --- EFEITO DE VERIFICAÇÃO DE TOKEN (AO CARREGAR O SITE) ---
   useEffect(() => {
-    const storedRole = localStorage.getItem('user_role');
-    if (storedRole) {
-      // Carrega o usuário completo baseado na role salva
-      const foundUser = mockUsuarios.find(u => u.role === storedRole);
-      if (foundUser) {
-        setToken(storedRole);
-        setUser(foundUser); // <-- Salva o usuário completo (com .nome, .email, .clienteId)
-      } else {
-        setToken(null); 
-      }
-    } else {
-      setToken(null); 
-    }
-  }, []);
+    const verifyToken = async () => {
+      // 1. Pega o token do localStorage
+      const storedToken = localStorage.getItem('accessToken');
+      
+      if (storedToken) {
+        try {
+          // 2. Tenta buscar os dados do usuário com o token
+          const response = await fetch('http://localhost:3340/user/me', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${storedToken}`,
+            },
+          });
 
-  const setRole = (newRole: string) => {
-    // Encontra o usuário no mock com base na role
-    const foundUser = mockUsuarios.find(u => u.role === newRole);
-    if (foundUser) {
-      localStorage.setItem('user_role', newRole);
-      setToken(newRole);
-      setUser(foundUser); // <-- Salva o usuário completo
-    }
+          if (!response.ok) {
+            throw new Error('Token inválido ou expirado');
+          }
+
+          // 3. Sucesso: Define o usuário e o token no estado
+          const userData = await response.json(); 
+          setToken(storedToken);
+          setUser(userData); 
+          
+        } catch (error) {
+          // 4. Falha: Limpa o token inválido
+          console.error(error);
+          localStorage.removeItem('accessToken');
+          setToken(null);
+          setUser(null);
+        }
+      } else {
+        // 5. Ninguém logado
+        setToken(null);
+        setUser(null);
+      }
+      setIsLoading(false); // Terminou a verificação
+    };
+
+    verifyToken();
+  }, []); // Roda apenas uma vez
+
+  // --- FUNÇÃO DE LOGIN (Chamada pela LoginPage) ---
+  // A LoginPage faz o fetch, este context apenas SALVA o resultado
+  const login = (data: { user: Usuario, accessToken: string }) => {
+    localStorage.setItem('accessToken', data.accessToken);
+    setToken(data.accessToken);
+    setUser(data.user);
+    // O redirecionamento é feito pela própria LoginPage
   };
 
+  // --- FUNÇÃO DE LOGOUT (Atualizada) ---
   const logout = () => {
-    localStorage.removeItem('user_role');
+    localStorage.removeItem('accessToken'); // <-- Remove o 'accessToken'
     setToken(null);
     setUser(null);
     router.push('/login');
   };
 
-  const role = typeof token === 'string' ? token : null;
+  // --- ROLE (Derivada do usuário) ---
+  const role = user ? mapApiRoleToAppRole(user.role) : null;
+
+  // Mostra uma tela em branco (ou um spinner) enquanto valida o token
+  if (isLoading) {
+    return null; // ou <SpinnerFullScreen />
+  }
 
   return (
-    <AuthContext.Provider value={{ token, user, role, setRole, logout }}>
+    <AuthContext.Provider value={{ token, user, role, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

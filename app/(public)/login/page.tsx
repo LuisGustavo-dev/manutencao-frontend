@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { mockUsuarios } from '@/lib/mock-data'; 
-import { useAuth } from '@/app/contexts/authContext';
+import { useAuth } from '@/app/contexts/authContext'; // Importa o hook atualizado
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast'; 
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,59 +19,95 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { setRole, token } = useAuth();
+  
+  // --- ATUALIZADO: Puxa 'login' e 'token' (e 'isLoading' do auth) ---
+  const { login, token, isLoading: isAuthLoading, role } = useAuth(); 
 
-  // Redireciona se já estiver logado (sem alteração)
+  // Redireciona se já estiver logado
   useEffect(() => {
-    if (token) {
-      if (token === 'Admin') router.push('/dashboard/admin');
-      else if (token === 'Manutentor') router.push('/dashboard/manutentor');
-      else if (token === 'Cliente') router.push('/dashboard/cliente');
+    // Se o AuthProvider ainda estiver validando o token, não faça nada
+    if (isAuthLoading) {
+      return; 
     }
-  }, [token, router]);
+    
+    // Se o token existir (AuthProvider validou), redireciona baseado no 'role'
+    if (token && role) {
+      if (role === 'Admin') router.push('/dashboard/admin');
+      else if (role === 'Manutentor') router.push('/dashboard/manutentor');
+      else if (role === 'Cliente') router.push('/dashboard/cliente');
+    }
+  }, [token, role, isAuthLoading, router]); // <-- Depende do carregamento do auth
 
-  const handleLogin = (e: React.FormEvent) => {
+  // --- FUNÇÃO DE LOGIN ATUALIZADA ---
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setIsLoading(true); // Ativa o loading do *formulário*
 
-    // Simula a demora de uma API
-    setTimeout(() => {
-      const usuario = mockUsuarios.find(
-        (u) => u.email === email && u.senha === senha
-      );
+    try {
+      const response = await fetch('http://localhost:3340/user/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: senha, // Mapeado 'senha' do estado para 'password' da API
+        }),
+      });
 
-      if (usuario) {
-        setRole(usuario.role);
-        
-        // Redireciona (o useEffect acima cuidará disso, mas podemos forçar)
-        if (usuario.role === 'Admin') router.push('/dashboard/admin');
-        else if (usuario.role === 'Manutentor') router.push('/dashboard/manutentor');
-        else router.push('/dashboard/cliente');
-      
-      } else {
-        setError('Credenciais inválidas. Verifique seu e-mail e senha.');
-        setIsLoading(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Usa a mensagem de erro da API se ela existir
+        throw new Error(data.message || 'Credenciais inválidas');
       }
-    }, 500); 
-  };
 
+      // --- AUTENTICAÇÃO SIMPLIFICADA ---
+      
+      // 1. Chama a função login do Context com os dados da API
+      // O Context vai cuidar de salvar no estado e no localStorage
+      login(data); 
+      
+      toast.success(`Bem-vindo, ${data.user.name}!`);
+
+      // 2. Redirecione o usuário (mapeando a role vinda da API)
+      const apiRole = data.user.role.toLowerCase();
+      if (apiRole === 'admin') {
+        router.push('/dashboard/admin');
+      } else if (apiRole === 'technical') {
+        router.push('/dashboard/manutentor');
+      } else { // 'user'
+        router.push('/dashboard/cliente');
+      }
+
+    } catch (err: any) {
+      setError(err.message || 'Erro ao tentar fazer login.');
+      setIsLoading(false); // <-- Libera o botão se der erro
+    }
+  };
+  // --- FIM DA FUNÇÃO DE LOGIN ---
+
+  // Enquanto o AuthProvider verifica o token, mostramos um loader
+  if (isAuthLoading || token) {
+     return (
+       <div className="flex min-h-screen items-center justify-center bg-slate-100">
+         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+       </div>
+     );
+  }
+
+  // Se o AuthProvider terminou e não há token, mostra o formulário
   return (
-    // Container principal que cobre toda a tela e centraliza o conteúdo
     <main className="bg-slate-100 relative flex min-h-screen flex-col items-center justify-center p-4 pb-16">
       
-      
-      {/* 2. Sobreposição Escura (para legibilidade) */}
       <div className="absolute inset-0 z-10" />
 
-      {/* 3. Card de Login (Flutuando no centro) */}
-      {/* 'relative z-20' coloca o card na frente da sobreposição */}
       <Card className="w-full max-w-sm relative z-20"> 
         <CardHeader className="items-center text-center">
-          {/* Branding (Logo e Título) */}
           <div className="flex flex-col items-center mb-4">
-            <ShieldCheck className="h-12 w-12 text-primary" />
-            <h1 className="text-xl font-bold mt-2">GrandTech</h1>
+            {/* Assumindo que você tem um logo.png na pasta /public */}
+            <img src="/logo.png" alt="MGR Refrigeração" className="w-24 h-auto" /> 
           </div>
           <CardTitle className="text-2xl">Acesso ao Portal</CardTitle>
           <CardDescription>
