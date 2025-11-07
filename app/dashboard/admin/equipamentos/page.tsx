@@ -27,14 +27,15 @@ import {
 import { QrCodeModalContent } from './components/QrCodeModalContent';
 import { EditEquipmentModalContent } from './components/EditEquipmentModalContent';
 import { HistoryModalContent } from './components/HistoryModalContent';
+import { NewEquipmentModalContent } from './components/NewEquipmentModalContent'; // <-- 1. IMPORTAR O NOVO MODAL
 
 export default function AdminEquipamentosPage() {
   const [baseUrl, setBaseUrl] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const router = useRouter(); // Pode ser usado para o botão "Novo"
+  const router = useRouter(); 
 
-  type ModalType = 'qr' | 'edit' | 'history' | null;
+  type ModalType = 'qr' | 'edit' | 'history' | 'new' | null; // <-- 2. ADICIONAR 'new'
   const [modalState, setModalState] = useState<{
     type: ModalType;
     equipment: Equipamento | null;
@@ -46,8 +47,8 @@ export default function AdminEquipamentosPage() {
 
   const filteredEquipamentos = mockEquipamentos.filter(eq => {
     const status = typeof window !== 'undefined' ? 
-                   localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                   eq.statusManutencao;
+                     localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
+                     eq.statusManutencao;
     const clienteNome = mockClientes.find(c => c.id === eq.clienteId)?.nomeFantasia || '';
     const statusMatch = statusFilter === 'all' || status === statusFilter;
     const searchMatch = searchTerm === '' ||
@@ -75,7 +76,9 @@ export default function AdminEquipamentosPage() {
             Gerencie, edite e monitore todo o inventário de equipamentos.
           </p>
         </div>
-        <Button onClick={() => alert('Abrir modal/página de NOVO equipamento...')}>
+        
+        {/* <-- 3. ATUALIZAR O ONCLICK DO BOTÃO --> */}
+        <Button onClick={() => setModalState({ type: 'new', equipment: null })}>
           + Novo Equipamento
         </Button>
       </div>
@@ -109,8 +112,8 @@ export default function AdminEquipamentosPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEquipamentos.map((eq) => {
           const status = typeof window !== 'undefined' ? 
-                                localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                                eq.statusManutencao;
+                           localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
+                           eq.statusManutencao;
           const cliente = mockClientes.find(c => c.id === eq.clienteId);
 
           return (
@@ -166,7 +169,6 @@ export default function AdminEquipamentosPage() {
                 <div className="flex items-center gap-2"><Bolt className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tensao}</span></div>
               </CardContent>
               
-              {/* O Admin NÃO tem o rodapé de "Solicitar Manutenção" */}
             </Card>
           );
         })}
@@ -198,6 +200,14 @@ export default function AdminEquipamentosPage() {
           {modalState.type === 'history' && modalState.equipment && (
             <HistoryModalContent 
               equipmentName={modalState.equipment.nome}
+            />
+          )}
+
+          {/* <-- 4. ADICIONAR O RENDER DO NOVO MODAL --> */}
+          {modalState.type === 'new' && (
+            <NewEquipmentModalContent 
+              clientes={mockClientes} 
+              onClose={closeModal}
             />
           )}
         </DialogContent>

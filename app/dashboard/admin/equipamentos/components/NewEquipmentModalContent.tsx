@@ -15,56 +15,78 @@ import {
 import type { Equipamento, Cliente } from "@/lib/mock-data"; // Importa os tipos
 import toast from "react-hot-toast";
 
-interface EditEquipmentModalProps {
-  equipment: Equipamento;
+interface NewEquipmentModalProps {
   clientes: Cliente[]; 
   onClose: () => void;
 }
 
-export function EditEquipmentModalContent({ equipment, clientes, onClose }: EditEquipmentModalProps) {
-  const [formData, setFormData] = useState<Equipamento>(equipment);
+// Define o estado inicial para um equipamento novo
+const initialFormData: Equipamento = {
+  id: '', 
+  nome: '',
+  clienteId: null, 
+  aplicacao: '',
+  tipo: 'Tunel de congelamento', 
+  tensao: '',
+  modeloCompressor: '',
+  tipoGas: '',
+  tipoOleo: '',
+  tipoCondensador: '',
+  tipoEvaporador: '',
+  valvulaExpansao: '',
+  
+  // --- CORREÇÃO AQUI ---
+  statusManutencao: 'Disponível', // <-- Use "Disponível" em vez de "Operacional"
+  // --- FIM DA CORREÇÃO ---
+};
+
+export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModalProps) {
+  const [formData, setFormData] = useState<Equipamento>(initialFormData);
 
   const handleChange = (field: keyof Equipamento, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = () => {
-    console.log("Salvando dados:", formData);
-    toast.success("Equipamento salvo com sucesso!");
+    // Lógica de salvamento (aqui simulada)
+    const newEquipment = {
+      ...formData,
+      id: crypto.randomUUID() // Gera um ID único para o novo equipamento
+    }
+    
+    console.log("Salvando novo equipamento:", newEquipment);
+    // (Em um app real, você adicionaria ao mock-data.ts aqui ou faria refetch)
+    
+    toast.success("Equipamento cadastrado com sucesso!");
     onClose();
   };
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Editar Equipamento</DialogTitle>
+        <DialogTitle>Cadastrar Novo Equipamento</DialogTitle>
         <DialogDescription>
-          Faça alterações nos dados cadastrais deste equipamento.
+          Preencha os dados para cadastrar um novo equipamento no sistema.
         </DialogDescription>
       </DialogHeader>
       
-      {/* Formulário de Edição */}
+      {/* Formulário de Criação */}
       <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
         
         {/* Bloco 1: Informações Principais */}
         <div className="col-span-2">
           <Label htmlFor="nome">Nome do Equipamento</Label>
-          <Input id="nome" value={formData.nome} onChange={(e) => handleChange('nome', e.target.value)} />
+          <Input id="nome" value={formData.nome} onChange={(e) => handleChange('nome', e.target.value)} placeholder="Ex: Câmara Fria 01" />
         </div>
         
         <div className="col-span-2">
           <Label htmlFor="cliente">Cliente Vinculado</Label>
-          
-          {/* --- CORREÇÕES APLICADAS AQUI --- */}
           <Select 
-            // 1. O 'value' do Select deve ser "none" se o ID do cliente for nulo ou ""
             value={formData.clienteId || "none"} 
-            // 2. Interceptamos o onValueChange: se o valor for "none", salvamos "", senão salvamos o valor.
             onValueChange={(value) => handleChange('clienteId', value === "none" ? "" : value)}
           >
             <SelectTrigger id="cliente"><SelectValue placeholder="Nenhum cliente" /></SelectTrigger>
             <SelectContent>
-              {/* 3. O 'value' do Item não pode ser "", então usamos "none" */}
               <SelectItem value="none">Nenhum cliente (Estoque)</SelectItem>
               {clientes.map((cliente) => (
                 <SelectItem key={cliente.id} value={cliente.id}>
@@ -73,12 +95,11 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
               ))}
             </SelectContent>
           </Select>
-          {/* --- FIM DAS CORREÇÕES --- */}
         </div>
         
         <div className="col-span-2">
           <Label htmlFor="aplicacao">Aplicação</Label>
-          <Input id="aplicacao" value={formData.aplicacao} onChange={(e) => handleChange('aplicacao', e.target.value)} />
+          <Input id="aplicacao" value={formData.aplicacao} onChange={(e) => handleChange('aplicacao', e.target.value)} placeholder="Ex: Congelamento de pão de queijo" />
         </div>
 
         <div className="col-span-2 sm:col-span-1">
@@ -98,7 +119,7 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
 
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor="tensao">Tensão</Label>
-          <Input id="tensao" value={formData.tensao} onChange={(e) => handleChange('tensao', e.target.value)} />
+          <Input id="tensao" value={formData.tensao} onChange={(e) => handleChange('tensao', e.target.value)} placeholder="220V / 380V" />
         </div>
 
         {/* Bloco 2: Detalhes Técnicos */}
@@ -133,7 +154,7 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSubmit}>Salvar Alterações</Button>
+        <Button onClick={handleSubmit}>Cadastrar Equipamento</Button>
       </DialogFooter>
     </>
   );
