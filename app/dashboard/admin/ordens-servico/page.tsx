@@ -34,7 +34,7 @@ export default function AdminOrdensServicoPage() {
       tecnicoNome: mockTecnicos.find(t => t.id === os.tecnicoId)?.nome || null,
       // --- CAMPO ADICIONADO ---
       // Busca o nome do cliente usando o clienteId da OS
-      clienteNome: mockClientes.find(c => c.id === os.clienteId)?.nomeFantasia || null,
+      // clienteNome: mockClientes.find(c => c.id === os.clienteId)?.nomeFantasia || null,
     }));
     
     // O Admin vê todas as OS

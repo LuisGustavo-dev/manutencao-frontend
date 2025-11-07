@@ -34,6 +34,7 @@ export type OrdemServico = {
   detalhes: string;
   tecnicoId?: string | null; 
   clienteId: string | null; // <-- CORREÇÃO: Usar clienteId
+  clienteNome: string; // <-- ADIÇÃO: Nome do cliente para exibição
   dataAbertura: string; 
   // (O campo clienteNome foi removido daqui pois agora buscamos pelo clienteId)
 };
@@ -143,6 +144,7 @@ export const mockOrdensServico: OrdemServico[] = [
     detalhes: 'Cliente reportou via QR Code que o equipamento não está atingindo a temperatura. Fotos anexadas (simulado). Verificar possível vazamento de gás.',
     tecnicoId: 'man001', 
     clienteId: 'cli-2', // <-- Vínculo (Mercado Central)
+    clienteNome: 'Mercado Central',
     dataAbertura: '03/11/2025'
   },
   {
@@ -153,6 +155,7 @@ export const mockOrdensServico: OrdemServico[] = [
     detalhes: 'Checklist Anual Agendado. Verificar superaquecimento, reaperto de painel e troca de filtros.',
     tecnicoId: null, 
     clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
+    clienteNome: 'Padaria Pão Quente',
     dataAbertura: '02/11/2025'
   },
   {
@@ -163,6 +166,7 @@ export const mockOrdensServico: OrdemServico[] = [
     detalhes: 'Equipamento parou subitamente.',
     tecnicoId: null, 
     clienteId: 'cli-1', // <-- Vínculo (Padaria Pão Quente)
+    clienteNome: 'Padaria Pão Quente',
     dataAbertura: '04/11/2025'
   },
 ];

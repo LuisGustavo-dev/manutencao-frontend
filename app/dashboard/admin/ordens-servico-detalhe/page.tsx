@@ -199,14 +199,14 @@ function DetalheOSPage() {
                 </div>
               </div>
               <Separator />
-              {/* <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <User className="h-5 w-5 text-primary" />
                 <div>
                   <Label className="text-xs">Cliente</Label>
                   <p className="font-semibold">{os.clienteNome}</p>
                 </div>
               </div>
-              <Separator /> */}
+              <Separator />
               <div className="flex items-center gap-3">
                 <HardHat className="h-5 w-5 text-primary" />
                 <div>
