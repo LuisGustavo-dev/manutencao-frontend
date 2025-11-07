@@ -1,4 +1,6 @@
 'use client';
+// --- ADICIONADO: useState ---
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -21,12 +23,33 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { Building, MoreHorizontal, PlusCircle, Package } from "lucide-react";
+// --- ADICIONADO: Dialogs e Ícones ---
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Building, MoreHorizontal, PlusCircle, Package, Pencil } from "lucide-react";
 import { mockClientes, mockEquipamentos } from "@/lib/mock-data";
+// --- ADICIONADO: Tipo Cliente e Modais ---
+import type { Cliente } from "@/lib/mock-data";
+import { NewClienteModalContent } from "./components/NewClienteModalContent";
+import { EditClienteModalContent } from "./components/EditClienteModalContent";
 import { useAuth } from "@/app/contexts/authContext";
 
 export default function ClientesPage() {
   const { role } = useAuth();
+
+  // --- ADICIONADO: Gerenciamento de estado do modal ---
+  type ModalType = 'new' | 'edit' | null;
+  const [modalState, setModalState] = useState<{
+    type: ModalType;
+    cliente: Cliente | null;
+  }>({ type: null, cliente: null });
+
+  const openModal = (type: ModalType, cliente: Cliente | null) => {
+    setModalState({ type, cliente });
+  };
+  const closeModal = () => {
+    setModalState({ type: null, cliente: null });
+  };
+  // --- FIM do gerenciamento ---
 
   // Conta quantos equipamentos cada cliente tem
   const getEquipmentCount = (clienteId: string) => {
@@ -45,7 +68,8 @@ export default function ClientesPage() {
           </p>
         </div>
         {role === 'Admin' && (
-          <Button size="lg" onClick={() => alert('Abrir modal de criação de cliente...')}>
+          // --- ATUALIZADO: onClick ---
+          <Button size="lg" onClick={() => openModal('new', null)}>
             <PlusCircle className="mr-2 h-5 w-5" />
             Novo Cliente
           </Button>
@@ -84,9 +108,11 @@ export default function ClientesPage() {
                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Editar Cliente</DropdownMenuItem>
-                        <DropdownMenuItem>Ver Equipamentos</DropdownMenuItem>
-                        <DropdownMenuItem>Ver Usuários</DropdownMenuItem>
+                        {/* --- ATUALIZADO: onClick --- */}
+                        <DropdownMenuItem onClick={() => openModal('edit', cliente)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Cliente
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -96,6 +122,23 @@ export default function ClientesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* --- ADICIONADO: Renderização do Dialog Global --- */}
+      <Dialog open={!!modalState.type} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="sm:max-w-md">
+          {modalState.type === 'new' && (
+            <NewClienteModalContent 
+              onClose={closeModal} 
+            />
+          )}
+          {modalState.type === 'edit' && modalState.cliente && (
+            <EditClienteModalContent 
+              cliente={modalState.cliente}
+              onClose={closeModal}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
