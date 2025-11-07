@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react"; 
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -24,15 +25,31 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, HardHat, MoreHorizontal } from "lucide-react";
-import { mockUsuarios } from "@/lib/mock-data"; // Importa usuários
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+// --- ÍCONE DE LIXEIRA ADICIONADO ---
+import { PlusCircle, HardHat, MoreHorizontal, Pencil, Trash2 } from "lucide-react"; 
+import { mockUsuarios } from "@/lib/mock-data"; 
+import type { Usuario } from "@/lib/mock-data";
+import { NewTecnicoModalContent } from "./components/NewTecnicoModalContent";
+import { EditTecnicoModalContent } from "./components/EditTecnicoModalContent";
 
 export default function GerenciarTecnicosPage() {
 
-  // Filtra apenas os Manutentores/Técnicos
+  type ModalType = 'new' | 'edit' | null;
+  const [modalState, setModalState] = useState<{
+    type: ModalType;
+    tecnico: Usuario | null;
+  }>({ type: null, tecnico: null });
+
+  const openModal = (type: ModalType, tecnico: Usuario | null) => {
+    setModalState({ type, tecnico });
+  };
+  const closeModal = () => {
+    setModalState({ type: null, tecnico: null });
+  };
+
   const tecnicos = mockUsuarios.filter(u => u.role === 'Manutentor');
 
-  // Helper de avatar
   const getFallback = (nome: string) => {
     const parts = nome.split(' ');
     if (parts.length > 1) {
@@ -52,7 +69,7 @@ export default function GerenciarTecnicosPage() {
             Crie e gerencie as contas de login da sua equipe técnica.
           </p>
         </div>
-        <Button>
+        <Button onClick={() => openModal('new', null)}>
           <PlusCircle className="mr-2 h-4 w-4" /> Novo Técnico
         </Button>
       </div>
@@ -91,12 +108,20 @@ export default function GerenciarTecnicosPage() {
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
+                      
+                      {/* --- DROPDOWN ATUALIZADO --- */}
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Editar Técnico</DropdownMenuItem>
-                        <DropdownMenuItem>Redefinir Senha</DropdownMenuItem>
-                        <DropdownMenuItem>Ver Relatórios</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Desativar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openModal('edit', user)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Técnico
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => alert(`Desativar ${user.nome}`)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Desativar
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
+                      {/* --- FIM DA ATUALIZAÇÃO --- */}
+
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
@@ -105,6 +130,23 @@ export default function GerenciarTecnicosPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Renderização do Dialog Global */}
+      <Dialog open={!!modalState.type} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="sm:max-w-md">
+          {modalState.type === 'new' && (
+            <NewTecnicoModalContent 
+              onClose={closeModal} 
+            />
+          )}
+          {modalState.type === 'edit' && modalState.tecnico && (
+            <EditTecnicoModalContent 
+              tecnico={modalState.tecnico}
+              onClose={closeModal}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
