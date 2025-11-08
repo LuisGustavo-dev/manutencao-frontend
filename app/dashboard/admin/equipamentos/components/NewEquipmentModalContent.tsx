@@ -12,18 +12,20 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import type { Equipamento, Cliente } from "@/lib/mock-data"; // Importa os tipos
+import type { Equipamento, Cliente } from "@/lib/mock-data"; 
 import toast from "react-hot-toast";
+import { useAuth } from "@/app/contexts/authContext";
+import { Loader2 } from "lucide-react";
 
 interface NewEquipmentModalProps {
   clientes: Cliente[]; 
   onClose: () => void;
 }
 
-// Define o estado inicial para um equipamento novo
-const initialFormData: Equipamento = {
+// --- TIPO E ESTADO INICIAL ATUALIZADOS ---
+// Removemos o campo 'nome' do estado inicial
+const initialFormData: Omit<Equipamento, 'nome'> = {
   id: '', 
-  nome: '',
   clienteId: null, 
   aplicacao: '',
   tipo: 'Tunel de congelamento', 
@@ -34,31 +36,76 @@ const initialFormData: Equipamento = {
   tipoCondensador: '',
   tipoEvaporador: '',
   valvulaExpansao: '',
-  
-  // --- CORREÇÃO AQUI ---
-  statusManutencao: 'Disponível', // <-- Use "Disponível" em vez de "Operacional"
-  // --- FIM DA CORREÇÃO ---
+  statusManutencao: 'Disponível',
 };
 
 export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModalProps) {
-  const [formData, setFormData] = useState<Equipamento>(initialFormData);
+  // O estado agora usa o tipo 'Omit'
+  const [formData, setFormData] = useState<Omit<Equipamento, 'nome'>>(initialFormData);
+  const [isLoading, setIsLoading] = useState(false);
+  const { token } = useAuth(); 
 
-  const handleChange = (field: keyof Equipamento, value: string) => {
+  // O 'field' agora usa o 'keyof Omit<...>'
+  const handleChange = (field: keyof Omit<Equipamento, 'nome'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    // Lógica de salvamento (aqui simulada)
-    const newEquipment = {
-      ...formData,
-      id: crypto.randomUUID() // Gera um ID único para o novo equipamento
+  const handleSubmit = async () => {
+    setIsLoading(true);
+
+    if (!token) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      setIsLoading(false);
+      return;
     }
+
+    const getUserId = () => {
+      if (!formData.clienteId) {
+        return null; 
+      }
+      const idAsNumber = parseInt(formData.clienteId, 10);
+      return isNaN(idAsNumber) ? null : idAsNumber; 
+    }
+
+    const apiBody = {
+      modeloCompressor: formData.modeloCompressor,
+      tipoGas: formData.tipoGas,
+      tipoOleo: formData.tipoOleo,
+      tipoEvaporador: formData.tipoEvaporador,
+      tipoCondensador: formData.tipoCondensador,
+      tipoValvula: formData.valvulaExpansao,
+      tensao: formData.tensao,
+      aplicacao: formData.aplicacao,
+      user: getUserId()
+      // O campo 'nome' não é mais enviado
+    };
     
-    console.log("Salvando novo equipamento:", newEquipment);
-    // (Em um app real, você adicionaria ao mock-data.ts aqui ou faria refetch)
+    console.log("Enviando para API:", apiBody);
     
-    toast.success("Equipamento cadastrado com sucesso!");
-    onClose();
+    try {
+      const response = await fetch('http://localhost:3340/equipamento', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(apiBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Falha ao cadastrar equipamento.");
+      }
+
+      toast.success("Equipamento cadastrado com sucesso!");
+      onClose(); 
+
+    } catch (error: any) {
+      console.error("Erro ao cadastrar equipamento:", error);
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -70,14 +117,9 @@ export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModa
         </DialogDescription>
       </DialogHeader>
       
-      {/* Formulário de Criação */}
       <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
         
-        {/* Bloco 1: Informações Principais */}
-        <div className="col-span-2">
-          <Label htmlFor="nome">Nome do Equipamento</Label>
-          <Input id="nome" value={formData.nome} onChange={(e) => handleChange('nome', e.target.value)} placeholder="Ex: Câmara Fria 01" />
-        </div>
+        {/* --- Bloco do NOME REMOVIDO --- */}
         
         <div className="col-span-2">
           <Label htmlFor="cliente">Cliente Vinculado</Label>
@@ -90,7 +132,7 @@ export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModa
               <SelectItem value="none">Nenhum cliente (Estoque)</SelectItem>
               {clientes.map((cliente) => (
                 <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.nomeFantasia} ({cliente.cnpj})
+                  {cliente.nomeFantasia} (ID: {cliente.id})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -103,8 +145,8 @@ export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModa
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="tipo">Tipo</Label>
-          <Select value={formData.tipo} onValueChange={(value) => handleChange('tipo', value)}>
+          <Label htmlFor="tipo">Tipo (Controle Interno)</Label>
+          <Select value={formData.tipo} onValueChange={(value) => handleChange('tipo' as any, value)}>
             <SelectTrigger id="tipo"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Tunel de congelamento">Túnel de congelamento</SelectItem>
@@ -123,7 +165,7 @@ export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModa
         </div>
 
         {/* Bloco 2: Detalhes Técnicos */}
-        <h4 className="col-span-2 mt-4 font-semibold text-lg border-b pb-2">Detalhes Técnicos</h4>
+        <h4 className="col-span-2 mt-4 font-semibold text-lg border-b pb-2">Detalhes Técnicos (API)</h4>
         
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor="compressor">Modelo Compressor</Label>
@@ -153,8 +195,14 @@ export function NewEquipmentModalContent({ clientes, onClose }: NewEquipmentModa
       </div>
       
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSubmit}>Cadastrar Equipamento</Button>
+        <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancelar</Button>
+        <Button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            "Cadastrar Equipamento"
+          )}
+        </Button>
       </DialogFooter>
     </>
   );

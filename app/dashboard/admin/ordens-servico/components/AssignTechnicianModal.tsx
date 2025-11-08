@@ -51,16 +51,13 @@ export function AssignTechnicianModal({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Atribuir Técnico</DialogTitle>
+          <DialogTitle>Atribuir Técnicosss</DialogTitle>
           <DialogDescription>
             Selecione um técnico para a OS <span className="font-bold">{os?.id}</span>
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="tecnico" className="text-right">
-              Técnico
-            </Label>
             <Select 
               value={selectedTechnician} 
               onValueChange={setSelectedTechnician}

@@ -27,6 +27,7 @@ interface OsTableProps {
 }
 
 export function OsTable({ ordens, role }: OsTableProps) {
+  console.log('Renderizando OsTable com ordens:', ordens);
   const router = useRouter();
   const { role: loggedInRole } = useAuth(); // Pega a role (para simulação)
 

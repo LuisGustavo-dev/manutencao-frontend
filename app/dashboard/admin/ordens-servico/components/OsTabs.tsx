@@ -3,10 +3,13 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EnrichedOS } from '../page'; // Importa o tipo da página pai
-import { Tecnico, mockOrdensServico } from '@/lib/mock-data';
+import { EnrichedOS } from '../page'; 
+import { Tecnico } from '@/lib/mock-data'; // Removido mockOrdensServico
 import { OsTable } from './OsTable';
 import { AssignTechnicianModal } from './AssignTechnicianModal';
+// --- NOVAS IMPORTAÇÕES ---
+import { useAuth } from '@/app/contexts/authContext';
+import toast from 'react-hot-toast';
 
 interface OsTabsProps {
   pendentes: EnrichedOS[];
@@ -14,6 +17,7 @@ interface OsTabsProps {
   concluidas: EnrichedOS[];
   role: string | null;
   tecnicos: Tecnico[];
+  onDataChange: () => void; // <-- 1. NOVA PROP PARA RECARREGAR
 }
 
 export function OsTabs({ 
@@ -21,10 +25,11 @@ export function OsTabs({
   emAndamento, 
   concluidas, 
   role, 
-  tecnicos 
+  tecnicos,
+  onDataChange // <-- 2. RECEBE A PROP
 }: OsTabsProps) {
   
-  // --- Estado do Modal ---
+  const { token } = useAuth(); // <-- 3. PEGA O TOKEN PARA A API
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOs, setSelectedOs] = useState<EnrichedOS | null>(null);
 
@@ -33,20 +38,42 @@ export function OsTabs({
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = (tecnicoId: string) => {
-    // --- LÓGICA DE SUBMISSÃO (MOCK) ---
-    // Aqui você faria a chamada de API
-    console.log(`Atribuindo OS ${selectedOs?.id} ao técnico ${tecnicoId}`);
-    // Atualiza o mock localmente (apenas para demo)
-    const osToUpdate = mockOrdensServico.find(os => os.id === selectedOs?.id);
-    if(osToUpdate) {
-      osToUpdate.tecnicoId = tecnicoId;
-      osToUpdate.status = "Em Andamento"; // Opcional: Atribuir = Em Andamento
+  // --- 4. FUNÇÃO DE SUBMISSÃO ATUALIZADA PARA API ---
+  const handleModalSubmit = async (tecnicoId: string) => {
+    if (!selectedOs || !token) {
+      toast.error("Erro: OS não selecionada ou sessão expirada.");
+      return;
     }
-    setIsModalOpen(false);
-    setSelectedOs(null);
-    // (Idealmente, a página pai faria o refetch, mas vamos recarregar por enquanto)
-    window.location.reload(); 
+
+    const chamadoId = selectedOs.id;
+    const apiUrl = `http://localhost:3340/chamado/atribuir-tecnico/tecnico/${tecnicoId}/chamado/${chamadoId}`;
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Falha ao atribuir técnico.");
+      }
+
+      toast.success("Técnico atribuído com sucesso! Atualizando lista...");
+      
+      onDataChange(); // <-- 5. CHAMA A FUNÇÃO PARA RECARREGAR OS DADOS
+      
+    } catch (error: any) {
+      console.error("Erro ao atribuir técnico:", error);
+      toast.error(error.message);
+    } finally {
+      setIsModalOpen(false);
+      setSelectedOs(null);
+      // REMOVIDO: window.location.reload();
+    }
   };
 
   return (
@@ -102,7 +129,7 @@ export function OsTabs({
         onOpenChange={setIsModalOpen}
         os={selectedOs}
         tecnicos={tecnicos}
-        onSubmit={handleModalSubmit}
+        onSubmit={handleModalSubmit} // <-- Chama a nova função async
       />
     </>
   );

@@ -1,41 +1,73 @@
 'use client';
 
-import { useRef, useState } from "react";
+import { useState, useEffect } from "react";
 import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { QRCodeCanvas } from 'qrcode.react'; // <-- 1. MUDANÇA IMPORTANTE: de SVG para Canvas
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { QrCode, Download, Copy, Check } from "lucide-react"; // <-- Novos Ícones
-import toast from "react-hot-toast"; // <-- Para Feedback
+import { QrCode, Download, Loader2, AlertTriangle } from "lucide-react"; 
+import toast from "react-hot-toast";
+import { useAuth } from "@/app/contexts/authContext"; // <-- 1. Importar Auth
 
 interface QrCodeModalProps {
   equipmentName: string;
-  qrUrl: string;
-  onClose: () => void; // <-- 2. Adicionada a prop onClose
+  equipmentId: string; // <-- 2. Prop alterada (não é mais qrUrl)
+  onClose: () => void;
 }
 
-export function QrCodeModalContent({ equipmentName, qrUrl, onClose }: QrCodeModalProps) {
-  // 3. Ref para o Canvas para podermos fazer o download
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [copied, setCopied] = useState(false);
+export function QrCodeModalContent({ equipmentName, equipmentId, onClose }: QrCodeModalProps) {
+  // --- 3. Novos estados para API ---
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { token } = useAuth(); // <-- Pega o token para a chamada
 
-  // 4. Função para Copiar o Link
-  const handleCopy = () => {
-    navigator.clipboard.writeText(qrUrl);
-    toast.success("Link copiado para a área de transferência!");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000); // Reseta o ícone de "copiado"
-  };
+  // --- 4. Busca o QR Code na API ---
+  useEffect(() => {
+    if (!equipmentId || !token) {
+      toast.error("ID do equipamento ou token não encontrado.");
+      setIsLoading(false);
+      return;
+    }
 
-  // 5. Função para Baixar o QR Code
+    const fetchQrCode = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`http://localhost:3340/equipamento/${equipmentId}/qrcode`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error("Falha ao carregar QR Code.");
+        }
+
+        // --- CORREÇÃO AQUI ---
+        // A API retorna a string base64 DIRETAMENTE, não um JSON
+        const base64String = await response.text(); 
+
+        if (!base64String || !base64String.startsWith('data:image/png;base64,')) { 
+          // Verifica se é uma string base64 de imagem válida
+          throw new Error("Formato de resposta da API inválido.");
+        }
+        
+        setImageData(base64String); // Salva a string base64
+        // --- FIM DA CORREÇÃO ---
+
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao buscar QR Code.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQrCode();
+  }, [equipmentId, token]);
+
+  // --- 5. Lógica de Download ATUALIZADA ---
   const handleDownload = () => {
-    if (canvasRef.current) {
-      // Converte o canvas para um link de imagem PNG
-      const url = canvasRef.current.toDataURL("image/png");
+    if (imageData) {
       const link = document.createElement("a");
-      link.href = url;
-      // Define o nome do arquivo (ex: "tunel-congelamento.png")
+      link.href = imageData; // A string base64 (Data URI) é um href válido
       link.download = `${equipmentName.toLowerCase().replace(/ /g, '-')}-qrcode.png`;
       document.body.appendChild(link);
       link.click();
@@ -51,44 +83,48 @@ export function QrCodeModalContent({ equipmentName, qrUrl, onClose }: QrCodeModa
           <QrCode className="h-6 w-6" /> Etiqueta de QR Code
         </DialogTitle>
         <DialogDescription>
-          Baixe a imagem para imprimir ou copie o link para compartilhar.
+          Baixe a imagem para imprimir a etiqueta de identificação.
         </DialogDescription>
       </DialogHeader>
 
-      {/* 6. Novo Layout "Etiqueta" */}
+      {/* --- 6. Layout ATUALIZADO para Loading --- */}
       <div className="flex flex-col items-center gap-4 py-4">
-        <div className="flex flex-col items-center gap-3 p-6 bg-slate-50 dark:bg-slate-800 rounded-lg border border-dashed">
-          <div className="p-4 bg-white rounded-lg shadow-md">
-            {/* 7. Usando o QRCodeCanvas e passando a ref */}
-            <QRCodeCanvas
-              // @ts-ignore (qrcode.react às vezes tem problemas de tipo com ref)
-              ref={canvasRef}
-              value={qrUrl}
-              size={220} // Tamanho maior
-              bgColor={"#ffffff"}
-              fgColor={"#000000"}
-              level={"H"} // Alta correção de erro
-              includeMargin={true}
-            />
-          </div>
-          <p className="font-semibold text-lg">{equipmentName}</p>
-        </div>
-      </div>
+        <div className="flex flex-col items-center justify-center gap-3 p-6 bg-slate-50 dark:bg-slate-800 rounded-lg border border-dashed h-[320px] w-full">
+          
+          {isLoading && (
+            <div className="flex flex-col items-center">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="mt-3 text-muted-foreground">Carregando QR Code...</p>
+            </div>
+          )}
+          
+          {imageData && !isLoading && (
+            <>
+              <div className="p-4 bg-white rounded-lg shadow-md">
+                {/* --- MUDANÇA: Renderiza a imagem da API --- */}
+                <img 
+                  src={imageData} 
+                  alt={`QR Code para ${equipmentName}`}
+                  width={220}
+                  height={220}
+                />
+              </div>
+              <p className="font-semibold text-lg">{equipmentName}</p>
+            </>
+          )}
 
-      {/* 8. Nova Seção "Copiar Link" */}
-      <div className="space-y-2">
-        <Label htmlFor="qr-url">Link Direto</Label>
-        <div className="flex gap-2">
-          <Input id="qr-url" value={qrUrl} readOnly className="flex-1" />
-          <Button variant="outline" size="icon" onClick={handleCopy}>
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-          </Button>
+          {!imageData && !isLoading && (
+            <div className="flex flex-col items-center text-destructive">
+               <AlertTriangle className="h-10 w-10" />
+               <p className="mt-3">Não foi possível carregar o QR Code.</p>
+            </div>
+          )}
         </div>
       </div>
 
       <DialogFooter className="pt-4">
         <Button variant="outline" onClick={onClose}>Fechar</Button>
-        <Button onClick={handleDownload}>
+        <Button onClick={handleDownload} disabled={!imageData || isLoading}>
           <Download className="mr-2 h-4 w-4" /> Baixar Imagem (.png)
         </Button>
       </DialogFooter>

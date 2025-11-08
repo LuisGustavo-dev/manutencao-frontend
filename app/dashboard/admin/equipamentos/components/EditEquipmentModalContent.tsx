@@ -12,8 +12,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import type { Equipamento, Cliente } from "@/lib/mock-data"; // Importa os tipos
+import type { Equipamento, Cliente } from "@/lib/mock-data"; 
 import toast from "react-hot-toast";
+// --- NOVAS IMPORTAÇÕES ---
+import { useAuth } from "@/app/contexts/authContext";
+import { Loader2 } from "lucide-react";
 
 interface EditEquipmentModalProps {
   equipment: Equipamento;
@@ -23,15 +26,74 @@ interface EditEquipmentModalProps {
 
 export function EditEquipmentModalContent({ equipment, clientes, onClose }: EditEquipmentModalProps) {
   const [formData, setFormData] = useState<Equipamento>(equipment);
+  // --- NOVOS ESTADOS ---
+  const [isLoading, setIsLoading] = useState(false);
+  const { token } = useAuth(); // <-- Pega o token de autenticação
 
   const handleChange = (field: keyof Equipamento, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    console.log("Salvando dados:", formData);
-    toast.success("Equipamento salvo com sucesso!");
-    onClose();
+  // --- FUNÇÃO DE SUBMISSÃO ATUALIZADA ---
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    
+    if (!token) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Helper para converter o ID do cliente
+    const getUserId = () => {
+      if (!formData.clienteId) {
+        return null; 
+      }
+      const idAsNumber = parseInt(formData.clienteId, 10);
+      return isNaN(idAsNumber) ? null : idAsNumber; 
+    }
+
+    // 1. Constrói o Body EXATAMENTE como o 'create'
+    const apiBody = {
+      modeloCompressor: formData.modeloCompressor,
+      tipoGas: formData.tipoGas,
+      tipoOleo: formData.tipoOleo,
+      tipoEvaporador: formData.tipoEvaporador,
+      tipoCondensador: formData.tipoCondensador,
+      tipoValvula: formData.valvulaExpansao, // Mapeado
+      tensao: formData.tensao,
+      aplicacao: formData.aplicacao,
+      user: getUserId() // Mapeado
+    };
+
+    const apiUrl = `http://localhost:3340/equipamento/${equipment.id}`; // <-- Rota PATCH com ID
+
+    console.log("Atualizando dados:", apiUrl, apiBody);
+    
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'PATCH', // <-- Método PATCH
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(apiBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Falha ao atualizar equipamento.");
+      }
+
+      toast.success("Equipamento salvo com sucesso!");
+      onClose(); // Fecha o modal e dispara o refetch na página pai
+
+    } catch (error: any) {
+      console.error("Erro ao atualizar equipamento:", error);
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,34 +108,24 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       {/* Formulário de Edição */}
       <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
         
-        {/* Bloco 1: Informações Principais */}
-        <div className="col-span-2">
-          <Label htmlFor="nome">Nome do Equipamento</Label>
-          <Input id="nome" value={formData.nome} onChange={(e) => handleChange('nome', e.target.value)} />
-        </div>
+        
         
         <div className="col-span-2">
           <Label htmlFor="cliente">Cliente Vinculado</Label>
-          
-          {/* --- CORREÇÕES APLICADAS AQUI --- */}
           <Select 
-            // 1. O 'value' do Select deve ser "none" se o ID do cliente for nulo ou ""
             value={formData.clienteId || "none"} 
-            // 2. Interceptamos o onValueChange: se o valor for "none", salvamos "", senão salvamos o valor.
             onValueChange={(value) => handleChange('clienteId', value === "none" ? "" : value)}
           >
             <SelectTrigger id="cliente"><SelectValue placeholder="Nenhum cliente" /></SelectTrigger>
             <SelectContent>
-              {/* 3. O 'value' do Item não pode ser "", então usamos "none" */}
               <SelectItem value="none">Nenhum cliente (Estoque)</SelectItem>
               {clientes.map((cliente) => (
                 <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.nomeFantasia} ({cliente.cnpj})
+                  {cliente.nomeFantasia} (ID: {cliente.id})
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {/* --- FIM DAS CORREÇÕES --- */}
         </div>
         
         <div className="col-span-2">
@@ -82,7 +134,8 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="tipo">Tipo</Label>
+          {/* O campo 'tipo' é usado para o formulário, mas não é enviado à API */}
+          <Label htmlFor="tipo">Tipo (Controle Interno)</Label>
           <Select value={formData.tipo} onValueChange={(value) => handleChange('tipo', value)}>
             <SelectTrigger id="tipo"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -102,7 +155,7 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
         </div>
 
         {/* Bloco 2: Detalhes Técnicos */}
-        <h4 className="col-span-2 mt-4 font-semibold text-lg border-b pb-2">Detalhes Técnicos</h4>
+        <h4 className="col-span-2 mt-4 font-semibold text-lg border-b pb-2">Detalhes Técnicos (API)</h4>
         
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor="compressor">Modelo Compressor</Label>
@@ -125,15 +178,21 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
           <Input id="evaporador" value={formData.tipoEvaporador} onChange={(e) => handleChange('tipoEvaporador', e.target.value)} />
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="valvula">Válvula de Expansão</Label>
+          <Label htmlFor="valvula">Válvula de Expansão (tipoValvula)</Label>
           <Input id="valvula" value={formData.valvulaExpansao} onChange={(e) => handleChange('valvulaExpansao', e.target.value)} />
         </div>
 
       </div>
       
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSubmit}>Salvar Alterações</Button>
+        <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancelar</Button>
+        <Button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            "Salvar Alterações"
+          )}
+        </Button>
       </DialogFooter>
     </>
   );

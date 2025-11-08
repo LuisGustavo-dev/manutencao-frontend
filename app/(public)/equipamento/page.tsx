@@ -50,8 +50,6 @@ type ApiHistoricoItem = {
   status: string;
 };
 
-// --- (Fim dos Mocks) ---
-
 
 export default function EquipamentoPageWrapper() {
   return (
@@ -80,8 +78,11 @@ function EquipamentoPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- ESTADO DE STATUS LOCAL (como o mock useEquipmentStatus fazia) ---
+  // --- ESTADO DE STATUS LOCAL ---
   const [status, setStatus] = useState<'Disponível' | 'Manutencao' | null>(null);
+
+  // --- 1. GATILHO PARA RECARREGAR OS DADOS ---
+  const [refetchToggle, setRefetchToggle] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<'cliente' | 'corretiva' | null>(null);
@@ -97,8 +98,12 @@ function EquipamentoPage() {
     }
 
     const fetchData = async () => {
-      setIsLoading(true);
+      // (Não reseta o loading se for apenas um refetch, para evitar piscar a tela)
+      if (equipamento === null) {
+        setIsLoading(true);
+      }
       setError(null);
+      
       try {
         const response = await fetch(`http://localhost:3340/equipamento/${id}`, {
           method: 'GET',
@@ -115,53 +120,43 @@ function EquipamentoPage() {
 
         // --- TRANSFORMAÇÃO DOS DADOS DA API ---
         
-        // 1. Mapeia o Status
         const statusManutencao: 'Disponível' | 'Manutencao' = 
           apiData.status === 'disponivel' ? 'Disponível' : 'Manutencao';
         
-        // 2. Transforma o Equipamento para o tipo do Frontend
         const transformedEq: Equipamento = {
           id: String(apiData.id),
           modeloCompressor: apiData.modeloCompressor,
           tipoGas: apiData.tipoGas,
           tipoOleo: apiData.tipoOleo,
-          tensao: `${apiData.tensao}V`, // Converte número para string
+          tensao: `${apiData.tensao}V`, 
           aplicacao: apiData.aplicacao,
           statusManutencao: statusManutencao,
           
           // --- CAMPOS FALTANTES (Valores Padrão) ---
-          // O frontend espera estes campos, mas a API não os enviou
-          nome: apiData.nome || `Equipamento #${apiData.id}`, // <-- API PRECISA ENVIAR
-          tipo: apiData.tipo || 'Não especificado',           // <-- API PRECISA ENVIAR
-          clienteId: apiData.clienteId || null,               // <-- API PRECISA ENVIAR
+          nome: apiData.nome || `Equipamento #${apiData.id}`, 
+          tipo: apiData.tipo || 'Não especificado', 
+          clienteId: apiData.clienteId || null, 
           tipoCondensador: apiData.tipoCondensador || 'N/A',
           tipoEvaporador: apiData.tipoEvaporador || 'N/A',
           valvulaExpansao: apiData.valvulaExpansao || 'N/A',
         };
         
-        // 3. Transforma o Histórico
         const transformedHistory: ApiHistoricoItem[] = apiData.chamadosFechados
           .map((item: any) => ({
             id: item.id,
             data: new Date(item.horaAbertura).toLocaleDateString('pt-BR'),
-            tipo: item.tipo, // Ex: "Corretivo"
-            tecnico: item.tecnicoNome || 'N/A', // API não fornece o técnico
-            status: item.status, // Ex: "Finalizado"
+            tipo: item.tipo, 
+            tecnico: item.tecnicoNome || 'N/A', 
+            status: item.status, 
           }))
-          .reverse(); // Mostra os mais recentes primeiro
+          .reverse(); 
 
-        // 4. Define os estados
         setEquipamento(transformedEq);
-        setHistorico(transformedHistory.slice(0, 3)); // Pega apenas os 3 últimos
+        setHistorico(transformedHistory.slice(0, 3)); 
         
-        // 5. Define o status local (para os botões)
-        // (Verifica o localStorage primeiro, como o mock fazia)
-        const storedStatus = localStorage.getItem(`status_${id}`);
-        if (storedStatus) {
-          setStatus(storedStatus as any);
-        } else {
-          setStatus(statusManutencao);
-        }
+        // --- ATUALIZADO: Define o status com base nos dados da API ---
+        // (Remove a lógica antiga do localStorage)
+        setStatus(statusManutencao);
 
       } catch (err: any) {
         setError(err.message || "Erro ao carregar dados.");
@@ -172,14 +167,12 @@ function EquipamentoPage() {
     };
 
     fetchData();
-  }, [id, token]); // Recarrega se o ID ou o token mudarem
+  }, [id, token, refetchToggle]); // <-- 2. GATILHO ADICIONADO AO ARRAY
 
-  // Limpa o loading quando a nova página carregar
   useEffect(() => {
     setLoadingPath(null);
   }, [pathname]);
 
-  // Função wrapper para navegação com loading
   const handleNavigate = (path: string) => {
     if (loadingPath === path) return; 
     setLoadingPath(path);
@@ -191,21 +184,22 @@ function EquipamentoPage() {
     setIsModalOpen(true);
   };
 
-  // --- Funções de Ação (Simulando o mock, salvando no localStorage) ---
-  // (O ideal seria fazer um POST/PATCH para a API aqui)
-  const handleSolicitarManutencao = () => {
-    if (id) localStorage.setItem(`status_${id}`, 'Manutencao');
-    setStatus('Manutencao'); 
-    toast.success('Chamado aberto! Em breve um técnico será notificado.');
+  const closeModal = () => {
     setIsModalOpen(false);
+    setModalContent(null);
+  }
+
+  // --- 3. NOVA FUNÇÃO DE CALLBACK ---
+  // Esta função é passada para os modais. 
+  // O modal fará a chamada da API, e ao ter sucesso, chamará esta função.
+  const handleModalSuccess = () => {
+    closeModal(); // Fecha o modal
+    setRefetchToggle(prev => !prev); // 4. Dispara o refetch dos dados
   };
 
-  const handleConcluirManutencao = () => {
-    if (id) localStorage.setItem(`status_${id}`, 'Disponível');
-    setStatus('Disponível');
-    toast.success('Manutenção concluída! O equipamento foi liberado.');
-    setIsModalOpen(false);
-  };
+  // --- 5. FUNÇÕES ANTIGAS REMOVIDAS ---
+  // const handleSolicitarManutencao = () => { ... }; // <-- REMOVIDA
+  // const handleConcluirManutencao = () => { ... }; // <-- REMOVIDA
 
   // --- RENDERIZAÇÃO DE LOADING E ERRO ---
   if (isLoading) {
@@ -231,8 +225,6 @@ function EquipamentoPage() {
   }
   // --- FIM DA RENDERIZAÇÃO DE LOADING E ERRO ---
 
-  // Define os paths de navegação
-  // Se o status é 'Manutencao', assumimos que há uma OS ativa (mesmo sem ID da API)
   const osAtiva = status === 'Manutencao'; 
   const historicoPath = `/dashboard/${role?.toLowerCase()}/equipamentos/historico?id=${equipamento.id}`; 
   
@@ -242,7 +234,6 @@ function EquipamentoPage() {
         
         <div className="space-y-2">
           <Badge>{equipamento.tipo}</Badge>
-          {/* O nome vem do dado transformado (pode ser "Equipamento #9") */}
           <h1 className="text-3xl font-bold tracking-tight">{equipamento.nome}</h1>
           <p className="text-lg text-muted-foreground">ID: {equipamento.id}</p>
         </div>
@@ -283,8 +274,8 @@ function EquipamentoPage() {
                         variant="outline" 
                         size="lg" 
                         className="w-full" 
-                        onClick={() => alert('Navegar para OS Ativa (Cliente)')} // Substitua pelo Href
-                        disabled={loadingPath === 'clientePath'} // Exemplo
+                        onClick={() => alert('Navegar para OS Ativa (Cliente)')} 
+                        disabled={loadingPath === 'clientePath'}
                       >
                         {loadingPath === 'clientePath' ? (
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -370,7 +361,6 @@ function EquipamentoPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 
-                {/* --- HISTÓRICO VINDO DA API --- */}
                 {historico.length > 0 ? (
                   historico.map((item) => (
                     <div key={item.id} className="flex items-start gap-3">
@@ -409,9 +399,20 @@ function EquipamentoPage() {
         </div>
       </main>
       
+      {/* --- 6. ATUALIZAÇÃO DA CHAMADA DO MODAL --- */}
       <DialogContent className="sm:max-w-2xl">
-        {modalContent === 'cliente' && <FormChecklistCliente onSubmit={handleSolicitarManutencao} />}
-        {modalContent === 'corretiva' && <FormChecklistManutentorCorretiva onSubmit={handleConcluirManutencao} />}
+        {modalContent === 'cliente' && (
+          <FormChecklistCliente 
+            equipamentoId={equipamento.id} // <-- 1. Passa o ID
+            onClose={closeModal}             // <-- 2. Passa a função de fechar
+            onSuccess={handleModalSuccess}   // <-- 3. Passa a nova função de sucesso
+          />
+        )}
+        {modalContent === 'corretiva' && (
+          <FormChecklistManutentorCorretiva 
+            onSubmit={handleModalSuccess} // <-- Atualizado (assumindo que seguirá o mesmo padrão)
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
