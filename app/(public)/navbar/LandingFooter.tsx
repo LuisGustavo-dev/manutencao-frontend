@@ -8,22 +8,22 @@ export function LandingFooter() {
       <div className="mx-auto flex flex-col gap-10 px-6 py-12 md:max-w-7xl md:flex-row md:justify-between md:items-start">
         
         {/* Esquerda: Logo, Nome, Slogan e Sobre */}
-        <div className="flex flex-col gap-4 md:w-1/3 text-left md:text-left">
+        <div className="flex flex-col gap-4 md:w-1/2 text-left md:text-left">
           <Link href="/" className="flex items-center justify-start space-x-3">
             <img
-              src="https://grandtechsistemas.com.br/assets/logo.png"
-              alt="Grandtech"
+              src="/assets/logo.jpg"
+              alt="Logo"
               width={60}
               height={60}
               className="rounded-lg object-cover"
             />
-            <span className="text-2xl font-bold">Grandtech</span>
+            <span className="text-2xl font-bold">MGR Refrigeração</span>
           </Link>
           <p className="text-muted-foreground">
-            Grandes soluções para grandes desafios.
+            Engenharia de Frio que Gera Lucro, Não Prejuízo.
           </p>
           <p className="text-muted-foreground">
-            A Grandtech é uma empresa especializada em desenvolvimento de software personalizado, criando soluções sob medida para atender às necessidades específicas da sua empresa.
+            Na indústria, refrigeração parada é prejuízo na certa. Nós garantimos que sua operação funcione, protegendo seu produto e sua lucratividade. Deixe o frio conosco e foque em produzir.
           </p>
         </div>
 
@@ -31,20 +31,20 @@ export function LandingFooter() {
         <div className="flex flex-col gap-4 md:w-1/3 text-center md:text-left">
           <div>
             <h4 className="text-lg font-semibold mb-2">Contato</h4>
-            <p className="text-muted-foreground">Email: contato@grandtechsistemas.com.br</p>
-            <p className="text-muted-foreground">Telefone: +55 (19) 99939-3663</p>
+            <p className="text-muted-foreground">Email: contato@mgrrefrigeracao.com.br</p>
+            <p className="text-muted-foreground">Telefone: +55 (19) 97138-2628</p>
           </div>
 
           <div>
             <h4 className="text-lg font-semibold mb-2">CNPJ</h4>
             <p className="text-muted-foreground">
-              59.904.503/0001-34
+              15.277.616/0001-81
             </p>
           </div>
         </div>
 
         {/* Direita: Endereço */}
-        <div className="flex flex-col gap-4 md:w-1/3 text-center md:text-left">
+        {/* <div className="flex flex-col gap-4 md:w-1/3 text-center md:text-left">
           <div>
             <h4 className="text-lg font-semibold mb-2">Endereço</h4>
             <p className="text-muted-foreground">
@@ -53,13 +53,24 @@ export function LandingFooter() {
               CEP 13334-060
             </p>
           </div>
-        </div>
+        </div> */}
 
       </div>
 
       {/* Rodapé inferior: Direitos Reservados */}
-      <div className="border-t text-center text-sm py-4 text-muted-foreground">
-        © {new Date().getFullYear()} Grandtech. Todos os direitos reservados.
+      <div className="flex flex-col border-t text-center text-sm py-4 text-muted-foreground">
+        © {new Date().getFullYear()} MGR Refrigeração. Todos os direitos reservados.
+        <span>
+          Desenvolvido por{" "}
+          <a
+              href="https://grandtechsistemas.com.br"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-primary text-primary"
+          >
+              Grandtech Sistemas
+          </a>
+        </span>
       </div>
     </footer>
   );

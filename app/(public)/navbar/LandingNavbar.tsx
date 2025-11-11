@@ -22,7 +22,8 @@ import toast from "react-hot-toast";
 // Removidos todos os ícones de menu desnecessários
 import { 
   LogOut, 
-  LayoutDashboard // <-- Ícone para o Dashboard
+  LayoutDashboard, // <-- Ícone para o Dashboard
+  UserIcon
 } from "lucide-react"; 
 // --- Fim das importações de ícones ---
 
@@ -56,10 +57,10 @@ export function LandingNavbar() {
       <Link href="/" className="flex items-center space-x-2">
         <div className="flex items-center justify-center">
           <img
-            src="https://grandtechsistemas.com.br/assets/logo.png"
-            width={100}
-            height={100}
-            alt="grandtech"
+            src="/assets/logo.jpg"
+            width={55}
+            height={40}
+            alt="logo"
             className="rounded-lg object-cover"
           />
         </div>
@@ -68,7 +69,7 @@ export function LandingNavbar() {
       {/* Texto centralizado */}
       <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <h1 className="text-3xl font-bold tracking-tighter">
-          GrandTech
+          MGR Refrigeração
         </h1>
       </div>
 
@@ -81,7 +82,7 @@ export function LandingNavbar() {
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-primary text-white">
-                      {userFallback}
+                      <UserIcon className="h-5 w-5" />
                     </AvatarFallback>
                   </Avatar>
                 </Button>

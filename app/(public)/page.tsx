@@ -41,32 +41,15 @@ export default function LandingPage() {
 
   // --- DADOS DO PORTFÓLIO ---
   const portfolioItems = [
-    { 
-      src: "/assets/carrosel1.jpg", 
-      title: "Cliente: Brasa", 
-      description: "Instalação de Câmara Fria e Sistema de Climatização." 
-    },
-    { 
-      src: "/assets/carrosel2.jpg", 
-      title: "Cliente: Croissant & Cia", 
-      description: "Projetos e montagem de túneis de congelamento." 
-    },
-    { 
-      src: "/assets/carrosel3.jpg", 
-      title: "Cliente: Sorvetão", 
-      description: "Manutenção e expansão do sistema de refrigeração." 
-    },
-    { 
-      src: "/assets/carrosel4.jpg", // Exemplo
-      title: "Outro Projeto", 
-      description: "Descrição de outra obra." 
-    },
-    { 
-      src: "/assets/carrosel5.jpg", // Exemplo
-      title: "Projeto HVAC", 
-      description: "Sistema de climatização industrial." 
-    },
-  ];
+  { src: "/assets/carrosel1.jpg" },
+  { src: "/assets/carrosel2.jpg" },
+  { src: "/assets/carrosel3.jpg" },
+  { src: "/assets/carrosel4.jpg" },
+  { src: "/assets/carrosel5.jpg" },
+  { src: "/assets/carrosel6.jpg" },
+  { src: "/assets/carrosel7.jpg" },
+  { src: "/assets/carrosel8.jpg" },
+];
 
   // --- DADOS DOS CLIENTES ---
   const clientLogos = [
@@ -146,7 +129,7 @@ export default function LandingPage() {
               
               <p className="max-w-[600px] text-lg text-gray-200">
                 Na indústria, refrigeração parada é prejuízo na certa. 
-                Nós garantimos que sua operação funcione 24/7, 
+                Nós garantimos que sua operação funcione, 
                 protegendo seu produto e sua lucratividade. 
                 Deixe o frio conosco e foque em produzir.
               </p>
@@ -209,7 +192,7 @@ export default function LandingPage() {
                     >
                       <img
                         src={item.src}
-                        alt={item.title}
+                        alt={index + 1 + "ª Obra Realizada"}
                         width={600}
                         height={450}
                         className="object-cover w-full h-80 transition-transform duration-500 group-hover:scale-105"
@@ -501,11 +484,11 @@ export default function LandingPage() {
                 <div className="p-3 rounded-full bg-primary/10 w-fit mb-4">
                   <AlertTriangle className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>Manutenção Corretiva 24h</CardTitle>
+                <CardTitle>Manutenção Corretiva</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
                 <CardDescription>
-                  Atendimento emergencial com tempo de resposta garantido (SLA) para toda sua planta de refrigeração.
+                  Atendimento emergencial com tempo de resposta garantido para toda sua planta de refrigeração.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -622,7 +605,7 @@ export default function LandingPage() {
                 <Avatar><AvatarFallback>RC</AvatarFallback></Avatar>
                 <div>
                   <p className="font-semibold">Roberto Carlos</p>
-                  <p className="text-sm text-muted-foreground">Gerente de Produção, Indústria Alimentícia ABC</p>
+                  <p className="text-sm text-muted-foreground">Gerente de Produção</p>
                 </div>
               </CardFooter>
             </Card>
@@ -630,14 +613,14 @@ export default function LandingPage() {
               <CardContent className="p-6 flex-1">
                 <Quote className="h-8 w-8 text-primary mb-4" />
                 <p className="text-xl italic">
-                  "O plano de manutenção preventiva da [GrandTech] é cirúrgico. Eles monitoram nossos compressores e agendam as paradas. Não tivemos mais quebras inesperadas em túneis de congelamento."
+                  "O plano de manutenção preventiva da MGR Refrigeração é cirúrgico. Eles monitoram nossos compressores e agendam as paradas. Não tivemos mais quebras inesperadas em túneis de congelamento."
                 </p>
               </CardContent>
               <CardFooter className="p-6 border-t flex items-center gap-4">
                 <Avatar><AvatarFallback>MF</AvatarFallback></Avatar>
                 <div>
                   <p className="font-semibold">Mariana Ferraz</p>
-                  <p className="text-sm text-muted-foreground">Diretora de Operações, Logística Fria XYZ</p>
+                  <p className="text-sm text-muted-foreground">Diretora de Operações</p>
                 </div>
               </CardFooter>
             </Card>
