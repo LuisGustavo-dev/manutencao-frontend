@@ -233,9 +233,7 @@ function EquipamentoPage() {
       <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
         
         <div className="space-y-2">
-          <Badge>{equipamento.tipo}</Badge>
           <h1 className="text-3xl font-bold tracking-tight">{equipamento.nome}</h1>
-          <p className="text-lg text-muted-foreground">ID: {equipamento.id}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -410,7 +408,9 @@ function EquipamentoPage() {
         )}
         {modalContent === 'corretiva' && (
           <FormChecklistManutentorCorretiva 
-            onSubmit={handleModalSuccess} // <-- Atualizado (assumindo que seguirá o mesmo padrão)
+            equipamentoId={equipamento.id} // <-- 1. Passe o ID do equipamento
+            onClose={closeModal}           // <-- 2. Passe a função de fechar
+            onSuccess={handleModalSuccess} // <-- 3. Passe a função de sucesso
           />
         )}
       </DialogContent>
