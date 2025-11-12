@@ -1,13 +1,20 @@
 "use client"
 
-import React, { useState }from "react"; // <-- Importar React
+import React, { useState, useMemo } from "react"; // <-- Corrigido (useMemo)
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Home } from "lucide-react"; 
-import { useAuth } from "@/app/contexts/authContext"; // <-- 1. Importar Auth
-import { useRouter, usePathname } from "next/navigation"; // <-- 2. Importar hooks
+import { useAuth } from "@/app/contexts/authContext"; 
+import { useRouter, usePathname } from "next/navigation"; 
 
-// --- 3. Importar tudo para o Dropdown ---
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,12 +30,12 @@ import {
   Wrench, 
   Package, 
   User as UserIcon, 
-  Loader2 
+  Loader2,
+  Home,
+  ChevronRight
 } from "lucide-react"; 
-// --- Fim das importações ---
 
-// --- 4. Configuração de Menu do Cliente ---
-// (Copiada da ClienteSidebar para manter a consistência)
+// --- Configuração de Menu do Cliente (Sidebar) ---
 const fullMenuConfig = [
     {
         label: "Painel",
@@ -51,12 +58,48 @@ const fullMenuConfig = [
     }
 ];
 
+// --- 1. NOVO MAPA DE ROTAS (Mais Robusto) ---
+// Mapeia o *path completo* para o nome que deve aparecer.
+const BREADCRUMB_MAP: { [key: string]: string } = {
+  '/dashboard/cliente': 'Meus Chamados',
+  '/dashboard/cliente/ordens-servico': 'Ordens de Serviço',
+  '/dashboard/cliente/ordens-servico-detalhe': 'Detalhes da O.S.',
+  '/dashboard/cliente/equipamentos': 'Equipamentos',
+  '/dashboard/cliente/perfil': 'Meu Perfil'
+};
+// --- FIM DO NOVO MAPA ---
+
+// --- 2. NOVA FUNÇÃO generateBreadcrumbs ---
+const generateBreadcrumbs = (pathname: string) => {
+  const breadcrumbs = [];
+  const pathSegments = pathname.split('/').filter(segment => segment);
+  let currentPath = '';
+
+  for (const segment of pathSegments) {
+    currentPath += `/${segment}`;
+
+    // Só adiciona ao breadcrumb se o path COMPLETO estiver no mapa
+    if (BREADCRUMB_MAP[currentPath]) {
+      breadcrumbs.push({
+        name: BREADCRUMB_MAP[currentPath],
+        path: currentPath
+      });
+    }
+    // Se não estiver no mapa (ex: um ID como '9' ou 'eq-123'),
+    // ele é simplesmente ignorado e não aparece no breadcrumb.
+  }
+  return breadcrumbs;
+};
+// --- FIM DA NOVA FUNÇÃO ---
+
 export default function ClienteNavbar() {
-  // --- 5. Adicionar Hooks e Lógica do Menu ---
   const { role, logout, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
+
+  // --- 3. GERA OS BREADCRUMBS (usando a nova função) ---
+  const breadcrumbItems = useMemo(() => generateBreadcrumbs(pathname), [pathname]);
 
   const currentRole = role || "Cliente";
 
@@ -99,23 +142,65 @@ export default function ClienteNavbar() {
       </DropdownMenuItem>
     );
   };
-  // --- Fim da Lógica do Menu ---
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
       
-      {/* O Logo/Nome linka para o redirecionador */}
-      <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-        <ShieldCheck className="h-6 w-6 text-primary" />
-        <span className="hidden md:inline">GrandTech</span>
-      </Link>
+      {/* --- 4. BREADCRUMB (Visível em MD+) --- */}
+      {/* Esta lógica agora está correta e segura */}
+      <div className="hidden md:flex">
+        <Breadcrumb>
+          <BreadcrumbList>
+            {/* O primeiro item é sempre o link da Home (Dashboard) */}
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/dashboard/cliente">Dashboard</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            
+            {breadcrumbItems.length > 0 && <BreadcrumbSeparator><ChevronRight className="h-4 w-4" /></BreadcrumbSeparator>}
+
+            {breadcrumbItems.map((item, index) => (
+              <React.Fragment key={item.path}>
+                <BreadcrumbItem>
+                  {index === breadcrumbItems.length - 1 ? (
+                    <BreadcrumbPage className="font-semibold">{item.name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={item.path}>{item.name}</Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+                {index < breadcrumbItems.length - 1 && (
+                  <BreadcrumbSeparator>
+                    <ChevronRight className="h-4 w-4" />
+                  </BreadcrumbSeparator>
+                )}
+              </React.Fragment>
+            ))}
+          </BreadcrumbList>
+        </Breadcrumb>
+      </div>
       
-      {/* --- 6. Menu de Perfil Adicionado --- */}
+      {/* --- 5. MENU DE PERFIL (Dropdown) --- */}
       <div className="ml-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-              <Avatar className="h-10 w-10">
+              
+              {/* LOGO (Apenas telas pequenas) */}
+              <div className="flex md:hidden items-center justify-center">
+                <img
+                  src="/assets/logo.png"
+                  width={32} 
+                  height={32}
+                  alt="logo"
+                  className="rounded-lg object-contain"
+                />
+              </div>
+
+              {/* AVATAR (Apenas telas médias+) */}
+              <Avatar className="hidden md:flex h-10 w-10">
                 <AvatarFallback className="bg-primary text-white">
                   {userFallback}
                 </AvatarFallback>
@@ -131,7 +216,6 @@ export default function ClienteNavbar() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            {/* Renderiza os menus do cliente */}
             {accessibleMenuGroups.map((group, groupIndex) => (
                 <React.Fragment key={group.label}>
                     <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
@@ -145,7 +229,6 @@ export default function ClienteNavbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {/* --- Fim do Menu de Perfil --- */}
     </header>
   );
 }

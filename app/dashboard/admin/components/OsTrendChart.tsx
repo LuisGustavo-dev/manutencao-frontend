@@ -1,14 +1,15 @@
 'use client';
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts"; 
+// 1. Importações atualizadas para BarChart e Bar
+import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import type { ChartData } from '../page'; // <-- Importa o TIPO da página pai
 
-// 1. Define a interface de props
+// Define a interface de props
 interface OsTrendChartProps {
   chartData: ChartData[];
 }
 
-// 2. Aceita as props
+// Aceita as props
 export function OsTrendChart({ chartData }: OsTrendChartProps) {
   return (
     <Card>
@@ -18,14 +19,21 @@ export function OsTrendChart({ chartData }: OsTrendChartProps) {
       </CardHeader>
       <CardContent className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+          {/* 2. Trocado LineChart por BarChart */}
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
             <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={30} />
             <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }} />
             <Legend iconType="circle" />
-            <Line type="monotone" dataKey="Corretivas" stroke="#ef4444" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Preventivas" stroke="#60a5fa" strokeWidth={2} dot={false} />
-          </LineChart>
+            
+            {/* --- ATUALIZADO --- */}
+            {/* Adicionado 'name' para a legenda e a nova barra 'Operacional' */}
+            <Bar dataKey="Corretivas" fill="#ef4444" radius={[4, 4, 0, 0]} name="Corretivas" />
+            <Bar dataKey="Preventivas" fill="#60a5fa" radius={[4, 4, 0, 0]} name="Preventivas" />
+            <Bar dataKey="Operacional" fill="#f97316" radius={[4, 4, 0, 0]} name="Operacional" />
+            {/* --- FIM DA ATUALIZAÇÃO --- */}
+            
+          </BarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

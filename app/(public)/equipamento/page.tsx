@@ -234,6 +234,7 @@ function EquipamentoPage() {
         
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">{equipamento.nome}</h1>
+          <p className="font-semibold">{equipamento.aplicacao}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -310,7 +311,7 @@ function EquipamentoPage() {
               <CardHeader>
                 <CardTitle>Ficha Técnica</CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center gap-3">
                   <Settings2 className="h-6 w-6 text-primary" />
                   <div>
@@ -339,13 +340,13 @@ function EquipamentoPage() {
                     <p className="font-semibold">{equipamento.tensao}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                {/* <div className="flex items-center gap-3">
                   <Archive className="h-6 w-6 text-primary" />
                   <div>
                     <Label className="text-xs">Aplicação</Label>
                     <p className="font-semibold">{equipamento.aplicacao}</p>
                   </div>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
 
@@ -376,21 +377,6 @@ function EquipamentoPage() {
                     Nenhum histórico de manutenção encontrado.
                   </p>
                 )}
-
-                <Separator />
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => handleNavigate(historicoPath)}
-                  disabled={loadingPath === historicoPath}
-                >
-                  {loadingPath === historicoPath ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <History className="mr-2 h-4 w-4" />
-                  )}
-                  Ver Histórico Completo
-                </Button>
               </CardContent>
             </Card>
           </div>

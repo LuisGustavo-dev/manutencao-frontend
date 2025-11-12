@@ -125,11 +125,14 @@ export default function ClienteSidebar({ collapsed, setCollapsed }: AppSidebarPr
                     onClick={() => setCollapsed(!collapsed)}
                     className="cursor-pointer flex items-center justify-center gap-2"
                 >
-                    <ShieldCheck className='h-8 w-8 text-primary ml-2'/>
+                    {/* Ícone trocado por Imagem */}
+                    <img src="/assets/logo.png" alt="MGR Logo" className="h-8 w-8 object-contain" />
+                    
                     {!collapsed && (
                         <div className="grid flex-1 text-left text-sm leading-tight">
-                            <span className="truncate font-semibold">GrandTech</span>
-                            <span className="truncate text-xs text-muted-foreground">Portal do Cliente</span>
+                            {/* Título Trocado */}
+                            <span className="truncate font-semibold">MGR Refrigeração</span>
+                            <span className="truncate text-xs text-muted-foreground">Painel do Cliente</span>
                         </div>
                     )}
                 </SidebarMenuButton>
@@ -157,7 +160,9 @@ export default function ClienteSidebar({ collapsed, setCollapsed }: AppSidebarPr
                             <DropdownMenuTrigger asChild>
                                 <SidebarMenuButton size="lg" className={`gap-2 flex items-center ${collapsed ? "justify-center" : ""}`}>
                                     <Avatar className="h-8 w-8 rounded-lg">
-                                        <AvatarFallback className="rounded-lg bg-primary text-white">{userFallback}</AvatarFallback>
+                                        <AvatarFallback className="rounded-lg bg-primary text-white">
+                                            <UserIcon className="h-5 w-5" />
+                                        </AvatarFallback>
                                     </Avatar>
                                     {!collapsed && (
                                         <div className="grid flex-1 text-left text-sm leading-tight">

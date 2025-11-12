@@ -180,14 +180,14 @@ export default function ClienteEquipamentosPage() {
                   <div className="flex-1">
                     
                     {/* --- ATUALIZADO: Título e Descrição --- */}
-                    <CardTitle className="truncate">{eq.tipo}</CardTitle>
-                    <CardDescription>ID: {eq.id}</CardDescription>
+                    <CardTitle className="truncate">Equipamento #{eq.id}</CardTitle>
+                    <CardDescription>{eq.aplicacao}</CardDescription>
                   
                   </div>
                   {status === 'Disponível' ? (
                     <Badge variant="outline" className="text-green-600 border-green-600">Disponível</Badge>
                   ) : (
-                    <Badge variant="destructive">Em Manutenção</Badge>
+                    <Badge variant="destructive">Manutenção</Badge>
                   )}
                 </div>
               </CardHeader>

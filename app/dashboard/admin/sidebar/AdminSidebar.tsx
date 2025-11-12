@@ -10,8 +10,8 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-// Ícones
-import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, ShieldCheck, Settings, HardHat } from "lucide-react" 
+// Ícones (ShieldCheck foi removido)
+import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, Settings, HardHat } from "lucide-react" 
 import toast from "react-hot-toast"
 
 interface AppSidebarProps {
@@ -20,7 +20,6 @@ interface AppSidebarProps {
 }
 
 // --- CONFIGURAÇÃO DE MENU SOMENTE DO ADMIN ---
-// (Sem allowedRoles, e paths diretos do admin)
 const fullMenuConfig = [
     {
         label: "Painel",
@@ -40,19 +39,16 @@ const fullMenuConfig = [
 ];
 
 export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
-    // Hooks simplificados (sem 'setRole')
     const { logout, user } = useAuth()
     const router = useRouter()
     const pathname = usePathname();
     const [loadingPath, setLoadingPath] = useState<string | null>(null);
 
-    // Limpa o loader DEPOIS que a navegação terminar
     useEffect(() => { 
         if (loadingPath) setLoadingPath(null); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pathname]);
 
-    // Não precisa mais filtrar o menu, o Admin vê tudo
     const accessibleMenuGroups = fullMenuConfig;
 
     const handleLogout = () => { logout(); toast.success("Você saiu com sucesso!"); };
@@ -71,15 +67,13 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
 
     const atalhos = [{ name: "Sair", icon: LogOut, action: handleLogout }];
     
-    // Dados do Perfil (simplificado)
     const userName = user?.nome || "Administrador";
-    const userEmail = user?.email || "admin@grandtech.com";
+    const userEmail = user?.email || "admin@mgr.com"; // <-- Atualizado
     const userFallback = userName.charAt(0).toUpperCase();
 
-    // --- FUNÇÃO renderMenuItem (Simplificada) ---
     const renderMenuItem = (item: any) => {
         const Icon = item.icon;
-        const targetPath = item.path; // O path agora é sempre o correto
+        const targetPath = item.path; 
         
         const isActive = pathname === targetPath;
         const isLoading = loadingPath === targetPath; 
@@ -98,10 +92,9 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
         )
     };
 
-    // --- FUNÇÃO renderDropdownItem (Simplificada) ---
     const renderDropdownItem = (item: any) => {
         const Icon = item.icon;
-        const targetPath = item.path; // O path é sempre o correto
+        const targetPath = item.path; 
         
         const isLoading = loadingPath === targetPath;
         const isActive = pathname === targetPath;
@@ -122,25 +115,28 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
     return (
         <Sidebar className={`bg-card h-full flex flex-col justify-between transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
             
+            {/* --- CABEÇALHO ATUALIZADO --- */}
             <SidebarHeader className={`bg-card flex items-center p-2 transition-all duration-300 ${collapsed ? "justify-center items-center" : "justify-between"}`}>
                 <SidebarMenuButton
                     size="lg"
                     onClick={() => setCollapsed(!collapsed)}
                     className="cursor-pointer flex items-center justify-center gap-2"
                 >
-                    <ShieldCheck className='h-8 w-8 text-primary'/>
+                    {/* Ícone trocado por Imagem */}
+                    <img src="/assets/logo.png" alt="MGR Logo" className="h-8 w-8 object-contain" />
+                    
                     {!collapsed && (
                         <div className="grid flex-1 text-left text-sm leading-tight">
-                            <span className="truncate font-semibold">GrandTech</span>
+                            {/* Título Trocado */}
+                            <span className="truncate font-semibold">MGR Refrigeração</span>
                             <span className="truncate text-xs text-muted-foreground">Painel do Admin</span>
                         </div>
                     )}
                 </SidebarMenuButton>
             </SidebarHeader>
+            {/* --- FIM DA ATUALIZAÇÃO --- */}
 
             <SidebarContent className="bg-card flex-1 transition-all duration-300">
-                {/* O Seletor de Simulação foi REMOVIDO */}
-
                 {accessibleMenuGroups.map(({ label, items }) => (
                     <SidebarGroup key={label}>
                         {!collapsed && <SidebarGroupLabel>{label}</SidebarGroupLabel>}

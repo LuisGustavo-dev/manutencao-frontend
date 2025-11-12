@@ -497,11 +497,11 @@ export default function LandingPage() {
                 <div className="p-3 rounded-full bg-primary/10 w-fit mb-4">
                   <CheckCircle className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>Manutenção Preventiva Preditiva</CardTitle>
+                <CardTitle>Manutenção Preventiva</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
                 <CardDescription>
-                  Contratos de manutenção preventiva e preditiva (análise de vibração, óleo) para reduzir o *downtime* inesperado.
+                  Contratos de manutenção preventiva (análise de vibração, óleo) para reduzir o downtime inesperado.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -514,7 +514,7 @@ export default function LandingPage() {
               </CardHeader>
               <CardContent className="flex-1">
                 <CardDescription>
-                  Implementamos nosso sistema de etiquetagem por QR Code em **todo o seu parque de máquinas**, mesmo em equipamentos antigos ou de terceiros.
+                  Implementamos nosso sistema de etiquetagem por QR Code em todo o seu parque de máquinas, mesmo em equipamentos antigos ou de terceiros.
                 </CardDescription>
               </CardContent>
             </Card>

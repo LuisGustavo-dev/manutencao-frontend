@@ -11,7 +11,7 @@ export function LandingFooter() {
         <div className="flex flex-col gap-4 md:w-1/2 text-left md:text-left">
           <Link href="/" className="flex items-center justify-start space-x-3">
             <img
-              src="/assets/logo.jpg"
+              src="/assets/logo.png"
               alt="Logo"
               width={60}
               height={60}

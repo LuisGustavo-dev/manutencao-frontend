@@ -127,9 +127,16 @@ export default function AdminNavbar() {
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
       
-      <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-        <ShieldCheck className="h-6 w-6 text-primary" />
-        <span className="hidden md:inline">GrandTech</span>
+      <Link href="/dashboard" className="flex md:hidden items-center space-x-2">
+        <div className="flex items-center justify-center">
+          <img
+            src="/assets/logo.png"
+            width={55}
+            height={40}
+            alt="logo"
+            className="rounded-lg object-cover"
+          />
+        </div>
       </Link>
 
       {/* --- 4. Menu de Perfil Adicionado --- */}
@@ -139,7 +146,7 @@ export default function AdminNavbar() {
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-primary text-white">
-                  {userFallback}
+                  <UserIcon className="h-5 w-5" />
                 </AvatarFallback>
               </Avatar>
             </Button>

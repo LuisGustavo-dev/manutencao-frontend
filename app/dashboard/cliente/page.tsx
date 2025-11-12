@@ -46,9 +46,9 @@ const saudeChartData = [
 ];
 const totalEquipamentos = saudeChartData.reduce((acc, item) => acc + item.value, 0);
 const historicoChartData = [
-  { name: 'Ago', Corretivas: 4, Preventivas: 2 },
-  { name: 'Set', Corretivas: 5, Preventivas: 2 },
-  { name: 'Out', Corretivas: 2, Preventivas: 2 },
+  { name: 'Ago', Corretivas: 4, Preventivas: 2, Operacional: 1 },
+  { name: 'Set', Corretivas: 5, Preventivas: 2, Operacional: 3 },
+  { name: 'Out', Corretivas: 2, Preventivas: 2, Operacional: 6 },
 ];
 const chamadosRecentes = [
   { id: "OS-901", equipamento: "Câmara Resfriados CR-002", tipo: "Corretiva", status: "Em Andamento" },
@@ -190,6 +190,7 @@ export default function ClienteHomePage() {
                 <Legend iconType="circle" />
                 <Bar dataKey="Corretivas" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Preventivas" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Operacional" fill="#22c55e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

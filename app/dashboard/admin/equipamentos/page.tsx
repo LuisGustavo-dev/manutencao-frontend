@@ -225,8 +225,8 @@ export default function AdminEquipamentosPage() {
                 <div className="flex-1">
                   
                   {/* --- ATUALIZADO: Título e Descrição --- */}
-                  <CardTitle className="truncate">{eq.tipo}</CardTitle>
-                  <CardDescription>ID: {eq.id}</CardDescription>
+                  <CardTitle className="truncate">Equipamento #{eq.id}</CardTitle>
+                  {/* <CardDescription>ID: {eq.id}</CardDescription> */}
                   
                   <CardDescription className="flex items-center gap-2 mt-2">
                     {cliente ? (

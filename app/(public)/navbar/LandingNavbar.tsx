@@ -57,7 +57,7 @@ export function LandingNavbar() {
       <Link href="/" className="flex items-center space-x-2">
         <div className="flex items-center justify-center">
           <img
-            src="/assets/logo.jpg"
+            src="/assets/logo.png"
             width={55}
             height={40}
             alt="logo"

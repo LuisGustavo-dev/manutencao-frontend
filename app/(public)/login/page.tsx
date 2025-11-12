@@ -107,7 +107,7 @@ export default function LoginPage() {
         <CardHeader className="items-center text-center">
           <div className="flex flex-col items-center mb-4">
             {/* Assumindo que você tem um logo.png na pasta /public */}
-            <img src="/logo.png" alt="MGR Refrigeração" className="w-24 h-auto" /> 
+            <img src="/assets/logo.png" alt="MGR Refrigeração" className="w-24 h-auto" /> 
           </div>
           <CardTitle className="text-2xl">Acesso ao Portal</CardTitle>
           <CardDescription>
