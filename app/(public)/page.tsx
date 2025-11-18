@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import Autoplay from "embla-carousel-autoplay"
 import { 
   QrCode, 
   ClipboardCheck, 
@@ -39,6 +40,14 @@ import {
 export default function LandingPage() {
   const whatsappLink = "https://api.whatsapp.com/send?phone=5519971382628&text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20uma%20visita%20t%C3%A9cnica.";
 
+  const plugin = useRef(
+    Autoplay({ delay: 3000, stopOnInteraction: true })
+  )
+
+  const clientPlugin = useRef(
+    Autoplay({ delay: 2500, stopOnInteraction: true })
+  )
+  
   // --- DADOS DO PORTFÓLIO ---
   const portfolioItems = [
   { src: "/assets/carrosel1.jpg" },
@@ -112,20 +121,26 @@ export default function LandingPage() {
           />
         </div>
         
-        {/* Overlay Escuro (Para Legibilidade) */}
+        {/* Overlay Escuro */}
         <div className="absolute inset-0 bg-black/60 z-[-1]"></div>
         
-        {/* Conteúdo (Layout de Grid) */}
         <div className="container px-4 md:px-6">
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
             
-            {/* Coluna 1: A Promessa (Texto na Esquerda) */}
-            <div className="flex flex-col justify-center space-y-6 text-white items-center text-center lg:items-start lg:text-left">
+            <div className="flex flex-col justify-center space-y-6 text-white 
+                            items-center text-center lg:items-start lg:text-left">
               
-              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-                Engenharia de Frio que Gera Solução.
+              {/* --- LOGO (EM CIMA) --- */}
+              <img src="/assets/logo.png" alt="Logo MGR" className="h-36 w-auto mb-2" />
+
+              {/* --- TEXTO NOVO --- */}
+              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-7xl">
+                Solução do Frio
               </h1>
               
+              <p className="text-xl font-bold tracking-tight sm:text-2xl lg:text-4xl">
+                Eficiência e economia
+              </p>
               <p className="max-w-[600px] text-lg text-gray-200">
                 Na indústria, refrigeração parada é prejuízo na certa. 
                 Nós garantimos que sua operação funcione, 
@@ -133,8 +148,7 @@ export default function LandingPage() {
                 Deixe o frio conosco e foque em produzir.
               </p>
               
-              <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                
+              <div className="flex flex-col gap-2 min-[400px]:flex-row pt-4">
                 <Button asChild>
                   <a 
                     href={whatsappLink} 
@@ -151,10 +165,7 @@ export default function LandingPage() {
               </div>
             </div>
             
-            {/* Coluna 2: Vazia (Para mostrar a imagem à direita) */}
-            <div className="hidden lg:block"> {/* Esta coluna é oculta em telas pequenas */}
-              {/* Este espaço fica vazio para o texto ficar à esquerda */}
-            </div>
+            <div className="hidden lg:block"></div>
 
           </div>
         </div>
@@ -174,6 +185,9 @@ export default function LandingPage() {
           </div>
           
           <Carousel 
+            plugins={[plugin.current]} // --- ATIVANDO AUTOPLAY ---
+            onMouseEnter={plugin.current.stop} // Para o mouse parar o carrossel
+            onMouseLeave={plugin.current.reset} // Retoma ao sair
             setApi={setApi}
             className="w-full max-w-6xl mx-auto"
             opts={{
@@ -191,7 +205,7 @@ export default function LandingPage() {
                     >
                       <img
                         src={item.src}
-                        alt={index + 1 + "ª Obra Realizada"}
+                        alt={item.src}
                         width={600}
                         height={450}
                         className="object-cover w-full h-80 transition-transform duration-500 group-hover:scale-105"
@@ -205,6 +219,7 @@ export default function LandingPage() {
               ))}
             </CarouselContent>
             
+            {/* Pontos de navegação */}
             <div className="flex justify-center gap-2 mt-6">
               {Array.from({ length: count }).map((_, index) => (
                 <button
@@ -387,6 +402,9 @@ export default function LandingPage() {
           </div>
 
           <Carousel 
+            plugins={[clientPlugin.current]} // --- ATIVANDO AUTOPLAY ---
+            onMouseEnter={clientPlugin.current.stop} 
+            onMouseLeave={clientPlugin.current.reset} 
             setApi={setClientApi} 
             className="w-full max-w-6xl mx-auto"
             opts={{
@@ -425,7 +443,6 @@ export default function LandingPage() {
           </Carousel>
         </div>
       </section>
-
       {/* --- Seção 6: Serviços (COM FUNDO BG-PRIMARY) --- */}
       <section id="servicos" className="w-full py-20 md:py-32 bg-primary">
         <div className="container px-4 md:px-6">
