@@ -5,11 +5,20 @@ import { Metadata } from 'next';
 import { AuthProvider } from '@/app/contexts/authContext';
 import { Toaster } from 'react-hot-toast';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-sans', 
+});
 
 export const metadata: Metadata = {
-  title: 'MGR Refrigeração', 
+  title: {
+    default: 'MGR Refrigeração', 
+    template: '%s | MGR Refrigeração', 
+  },
   description: 'Sistema de Gerenciamento de Manutenção MGR',
+  icons: {
+    icon: '/favicon.ico', 
+  },
 };
 
 export default function RootLayout({
@@ -22,14 +31,13 @@ export default function RootLayout({
       <body
         className={cn(
           'min-h-screen bg-background font-sans antialiased',
-          inter.className
+          inter.variable 
         )}
       >
         <AuthProvider>
           {children}
         </AuthProvider>
         
-        {/* Local para os pop-ups de notificação (toast) */}
         <Toaster position="bottom-left" />
       </body>
     </html>

@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function LandingPage() {
-  const whatsappLink = "https://api.whatsapp.com/send?phone=5519993537056&text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20uma%20visita%20t%C3%A9cnica.";
+  const whatsappLink = "https://api.whatsapp.com/send?phone=5519971382628&text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20uma%20visita%20t%C3%A9cnica.";
 
   // --- DADOS DO PORTFÓLIO ---
   const portfolioItems = [
@@ -62,7 +62,7 @@ export default function LandingPage() {
     { src: "/assets/neves.jpeg", alt: "Logo Cliente Salgados Neves" },
     { src: "/assets/indaia_pescados.png", alt: "Logo Cliente Indaiá Pescados" },
     { src: "/assets/sabores_do_acai.jpeg", alt: "Logo Cliente Sabores do Açaí" },
-    { src: "/assets/disc_breja.jpeg", alt: "Logo Cliente Disc Breja" },
+    { src: "/assets/diskbreja.avif", alt: "Logo Cliente Disc Breja" },
     { src: "/assets/desanta.png", alt: "Logo Cliente D.Santa Logística" },
   ];
 
@@ -120,11 +120,10 @@ export default function LandingPage() {
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
             
             {/* Coluna 1: A Promessa (Texto na Esquerda) */}
-            <div className="flex flex-col justify-center space-y-6 text-white 
-                            items-center text-center lg:items-start lg:text-left">
+            <div className="flex flex-col justify-center space-y-6 text-white items-center text-center lg:items-start lg:text-left">
               
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-                Engenharia de Frio que Gera Lucro, Não Prejuízo.
+                Engenharia de Frio que Gera Solução.
               </h1>
               
               <p className="max-w-[600px] text-lg text-gray-200">

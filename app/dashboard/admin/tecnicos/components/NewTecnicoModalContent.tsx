@@ -28,17 +28,18 @@ export function NewTecnicoModalContent({ onClose }: NewTecnicoModalProps) {
 
   const handleSubmit = () => {
     // Lógica de salvamento (aqui simulada)
-    const newTecnico: Usuario = {
-      ...formData,
-      id: crypto.randomUUID(), // Gera um ID único
-      role: 'Manutentor',        // Define a role fixa
+    // const newTecnico: Usuario = {
+    //   ...formData,
+    //   id: crypto.randomUUID(), // Gera um ID único
+    //   role: 'Manutentor', 
+    //   cnpj: 'Teste',
       
-      // --- CORREÇÃO AQUI ---
-      clienteId: null // Adiciona o campo obrigatório como nulo
-      // --- FIM DA CORREÇÃO ---
-    }
+    //   // --- CORREÇÃO AQUI ---
+    //   clienteId: null // Adiciona o campo obrigatório como nulo
+    //   // --- FIM DA CORREÇÃO ---
+    // }
     
-    console.log("Salvando novo técnico:", newTecnico);
+    console.log("Salvando novo técnico:");
     // (Em um app real, você adicionaria ao mockUsuarios aqui ou faria refetch)
     
     toast.success("Técnico cadastrado com sucesso!");

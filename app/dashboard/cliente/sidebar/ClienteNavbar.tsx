@@ -50,12 +50,12 @@ const fullMenuConfig = [
             { name: "Equipamentos", icon: Package, path: "/dashboard/cliente/equipamentos", allowedRoles: ['Cliente', 'Admin'] },
         ]
     },
-    {
-        label: "Conta", 
-        items: [
-            { name: "Meu Perfil", icon: UserIcon, path: "/dashboard/cliente/perfil", allowedRoles: ['Cliente', 'Admin'] },
-        ]
-    }
+    // {
+    //     label: "Conta", 
+    //     items: [
+    //         { name: "Meu Perfil", icon: UserIcon, path: "/dashboard/cliente/perfil", allowedRoles: ['Cliente', 'Admin'] },
+    //     ]
+    // }
 ];
 
 // --- 1. NOVO MAPA DE ROTAS (Mais Robusto) ---
