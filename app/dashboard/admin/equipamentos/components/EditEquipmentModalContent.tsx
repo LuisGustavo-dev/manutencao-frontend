@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import type { Equipamento, Cliente } from "@/lib/mock-data"; 
 import toast from "react-hot-toast";
-// --- NOVAS IMPORTAÇÕES ---
 import { useAuth } from "@/app/contexts/authContext";
 import { Loader2 } from "lucide-react";
 
@@ -26,15 +25,33 @@ interface EditEquipmentModalProps {
 
 export function EditEquipmentModalContent({ equipment, clientes, onClose }: EditEquipmentModalProps) {
   const [formData, setFormData] = useState<Equipamento>(equipment);
-  // --- NOVOS ESTADOS ---
   const [isLoading, setIsLoading] = useState(false);
-  const { token } = useAuth(); // <-- Pega o token de autenticação
+  const { token } = useAuth(); 
 
   const handleChange = (field: keyof Equipamento, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- FUNÇÃO DE SUBMISSÃO ATUALIZADA ---
+  // --- NOVA LÓGICA: Adiciona V ao sair do campo ---
+ const handleBlurTensao = () => {
+    let valor = formData.tensao;
+    
+    // Se estiver vazio, não faz nada
+    if (!valor) return;
+
+    // 1. Remove qualquer combinação de espaços e letras 'v' (maiúscula ou minúscula) do final
+    // A regex /\s*v+\s*$/i significa:
+    // \s* -> qualquer espaço (opcional)
+    // v+   -> uma ou mais letras 'v'
+    // \s* -> qualquer espaço depois (opcional)
+    // $    -> no fim da linha
+    // i    -> ignora maiúsculas/minúsculas
+    const valorLimpo = valor.replace(/\s*v+\s*$/i, '').trim();
+
+    // 2. Define o valor limpo + " V" padrão
+    handleChange('tensao', `${valorLimpo}`);
+  };
+
   const handleSubmit = async () => {
     setIsLoading(true);
     
@@ -44,7 +61,6 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       return;
     }
 
-    // Helper para converter o ID do cliente
     const getUserId = () => {
       if (!formData.clienteId) {
         return null; 
@@ -53,26 +69,25 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       return isNaN(idAsNumber) ? null : idAsNumber; 
     }
 
-    // 1. Constrói o Body EXATAMENTE como o 'create'
     const apiBody = {
       modeloCompressor: formData.modeloCompressor,
       tipoGas: formData.tipoGas,
       tipoOleo: formData.tipoOleo,
       tipoEvaporador: formData.tipoEvaporador,
       tipoCondensador: formData.tipoCondensador,
-      tipoValvula: formData.valvulaExpansao, // Mapeado
+      tipoValvula: formData.valvulaExpansao, 
       tensao: formData.tensao,
       aplicacao: formData.aplicacao,
-      user: getUserId() // Mapeado
+      user: getUserId() 
     };
 
-    const apiUrl = `http://localhost:3340/equipamento/${equipment.id}`; // <-- Rota PATCH com ID
+    const apiUrl = `http://localhost:3340/equipamento/${equipment.id}`; 
 
     console.log("Atualizando dados:", apiUrl, apiBody);
     
     try {
       const response = await fetch(apiUrl, {
-        method: 'PATCH', // <-- Método PATCH
+        method: 'PATCH', 
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}` 
@@ -86,7 +101,7 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       }
 
       toast.success("Equipamento salvo com sucesso!");
-      onClose(); // Fecha o modal e dispara o refetch na página pai
+      onClose(); 
 
     } catch (error: any) {
       console.error("Erro ao atualizar equipamento:", error);
@@ -107,8 +122,6 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
       
       {/* Formulário de Edição */}
       <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-        
-        
         
         <div className="col-span-2">
           <Label htmlFor="cliente">Cliente Vinculado</Label>
@@ -134,7 +147,6 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          {/* O campo 'tipo' é usado para o formulário, mas não é enviado à API */}
           <Label htmlFor="tipo">Tipo (Controle Interno)</Label>
           <Select value={formData.tipo} onValueChange={(value) => handleChange('tipo', value)}>
             <SelectTrigger id="tipo"><SelectValue /></SelectTrigger>
@@ -151,7 +163,12 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
 
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor="tensao">Tensão</Label>
-          <Input id="tensao" value={formData.tensao} onChange={(e) => handleChange('tensao', e.target.value)} />
+          <Input 
+            id="tensao" 
+            value={formData.tensao} 
+            onChange={(e) => handleChange('tensao', e.target.value)}
+            onBlur={handleBlurTensao} /* <-- Evento adicionado aqui */
+          />
         </div>
 
         {/* Bloco 2: Detalhes Técnicos */}
