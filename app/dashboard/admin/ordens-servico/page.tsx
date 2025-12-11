@@ -145,8 +145,6 @@ export default function AdminOrdensServicoPage() {
   return (
     <div className="space-y-6">
       
-      {/* 1. CABEÇALHO */}
-      <OsPageHeader role={role} />
 
       {/* 2. CARDS KPI */}
       <OsKpiCards 

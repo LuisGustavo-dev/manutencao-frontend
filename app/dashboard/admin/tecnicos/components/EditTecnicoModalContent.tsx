@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import toast from "react-hot-toast";
-import { useAuth } from "@/app/contexts/authContext"; // Importação do Auth
+import { useAuth } from "@/app/contexts/authContext";
 import { Loader2 } from "lucide-react";
 
-// Interface compatível com o backend (name ao invés de nome)
 interface TecnicoData {
   id: number;
   name: string;
   email: string;
+  telefone?: string; 
   isActive?: boolean;
 }
 
@@ -23,22 +23,34 @@ interface EditTecnicoModalProps {
 }
 
 export function EditTecnicoModalContent({ tecnico, onClose }: EditTecnicoModalProps) {
-  const { token } = useAuth(); // Recupera o token
+  const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Inicializa o state com os dados atuais do técnico
   const [formData, setFormData] = useState({
-    name: tecnico.name, // Ajustado para 'name'
+    name: tecnico.name,
     email: tecnico.email,
+    telefone: tecnico.telefone || '', 
+    password: '', 
   });
 
+  // --- MUDANÇA AQUI: Lógica de validação numérica ---
   const handleChange = (field: keyof typeof formData, value: string) => {
+    
+    if (field === 'telefone') {
+      // O Regex /\D/g seleciona tudo que NÃO for dígito
+      // Substituímos por string vazia, deixando só números
+      const onlyNumbers = value.replace(/\D/g, '');
+      setFormData(prev => ({ ...prev, [field]: onlyNumbers }));
+      return;
+    }
+
+    // Comportamento padrão para os outros campos
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
     if (!formData.name || !formData.email) {
-      toast.error("Preencha todos os campos.");
+      toast.error("Nome e Email são obrigatórios.");
       return;
     }
 
@@ -50,14 +62,23 @@ export function EditTecnicoModalContent({ tecnico, onClose }: EditTecnicoModalPr
     try {
       setIsLoading(true);
 
-      // Rota dinâmica com o ID do técnico
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        telefone: formData.telefone,
+      };
+
+      if (formData.password && formData.password.trim() !== '') {
+        payload.password = formData.password;
+      }
+
       const response = await fetch(`http://localhost:3340/user/${tecnico.id}`, {
-        method: 'PATCH', // Geralmente updates usam PATCH ou PUT
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -66,7 +87,7 @@ export function EditTecnicoModalContent({ tecnico, onClose }: EditTecnicoModalPr
       }
 
       toast.success("Dados atualizados com sucesso!");
-      onClose(); // Fecha o modal (o pai deve recarregar a lista)
+      onClose(); 
 
     } catch (error: any) {
       console.error("Erro na atualização:", error);
@@ -81,11 +102,10 @@ export function EditTecnicoModalContent({ tecnico, onClose }: EditTecnicoModalPr
       <DialogHeader>
         <DialogTitle>Editar Técnico</DialogTitle>
         <DialogDescription>
-          Faça alterações nos dados cadastrais deste técnico.
+          Atualize as informações de contato e acesso.
         </DialogDescription>
       </DialogHeader>
       
-      {/* Formulário de Edição */}
       <div className="grid grid-cols-1 gap-4 py-4">
         
         <div>
@@ -108,10 +128,32 @@ export function EditTecnicoModalContent({ tecnico, onClose }: EditTecnicoModalPr
             disabled={isLoading}
           />
         </div>
-        
-        <p className="text-sm text-muted-foreground mt-2">
-          Nota: A edição de senha não é feita aqui. Solicite uma redefinição caso necessário.
-        </p>
+
+        {/* --- MUDANÇA AQUI: Input de Telefone --- */}
+        <div>
+          <Label htmlFor="telefone">Celular (Apenas Números)</Label>
+          <Input 
+            id="telefone" 
+            value={formData.telefone} 
+            onChange={(e) => handleChange('telefone', e.target.value)} 
+            placeholder="11999999999"
+            maxLength={11}       // Limita a 11 caracteres (DDD + 9 dígitos)
+            inputMode="numeric"  // Abre teclado numérico no celular
+            disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="password">Nova Senha</Label>
+          <Input 
+            id="password" 
+            type="password"
+            value={formData.password} 
+            onChange={(e) => handleChange('password', e.target.value)} 
+            placeholder="Deixe em branco para manter a atual"
+            disabled={isLoading}
+          />
+        </div>
 
       </div>
       
