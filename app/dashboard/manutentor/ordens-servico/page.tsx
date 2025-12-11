@@ -1,18 +1,20 @@
 'use client';
+
 import { useEffect, useState, useMemo } from 'react';
-// import { mockOrdensServico, mockEquipamentos, mockTecnicos } from '@/lib/mock-data';
-import type { OrdemServico, Tecnico } from '@/lib/mock-data';
+import type { OrdemServico } from '@/lib/mock-data';
 import { useAuth } from '@/app/contexts/authContext'; 
 
 // Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
 import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
-import { OsTabs } from './components/OsTabs';
-import { Loader2 } from 'lucide-react'; 
-import toast from 'react-hot-toast'; 
+// REMOVIDO: import { OsTabs } from './components/OsTabs';
 
-// --- 1. TIPO CORRIGIDO (para bater com o useMemo) ---
+import { Loader2, Eye, FileText } from 'lucide-react'; 
+import toast from 'react-hot-toast'; 
+import Link from 'next/link'; // Importante para o botão de detalhes
+
+// --- TIPO ---
 export type EnrichedOS = OrdemServico & {
   equipamentoNome: string;
   tecnicoNome: string | null;
@@ -20,7 +22,7 @@ export type EnrichedOS = OrdemServico & {
 };
 
 export default function ManutentorOrdensServicoPage() {
-  const { role, user, token } = useAuth(); // Pega o usuário e o TOKEN
+  const { role, user, token } = useAuth(); 
 
   // --- Estados ---
   const [allOrdens, setAllOrdens] = useState<EnrichedOS[]>([]);
@@ -28,7 +30,7 @@ export default function ManutentorOrdensServicoPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState('todos');
 
-  // --- 2. Carrega e enriquece os dados via API (CORRIGIDO) ---
+  // --- Carrega dados ---
   useEffect(() => {
     if (!token) {
       if (token === null) setIsLoading(false);
@@ -38,7 +40,6 @@ export default function ManutentorOrdensServicoPage() {
     const fetchOrdens = async () => {
       setIsLoading(true);
       try {
-        // --- ADICIONADO: Parâmetro de cache para evitar 304 ---
         const response = await fetch(`http://localhost:3340/chamado?_=${new Date().getTime()}`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` },
@@ -48,9 +49,9 @@ export default function ManutentorOrdensServicoPage() {
           throw new Error('Falha ao buscar ordens de serviço');
         }
 
-        const dataFromApi = await response.json(); // API agora retorna Chamado[] (lista plana)
+        const dataFromApi = await response.json();
 
-        // --- CAMADA DE TRADUÇÃO (API PLANA -> Frontend) ---
+        // --- TRADUÇÃO ---
         const enriched: EnrichedOS[] = dataFromApi.map((apiOS: any) => {
           
           const mapStatus = (status: string): 'Pendente' | 'Em Andamento' | 'Concluída' => {
@@ -71,24 +72,16 @@ export default function ManutentorOrdensServicoPage() {
             status: mapStatus(apiOS.status),
             dataAbertura: apiOS.horaAbertura, 
             clienteNome: apiOS.name || 'Cliente N/A',
-            // A API não envia 'tecnicoName', então usamos o nome do usuário logado
-            // (assumindo que esta API só retorna OSs deste técnico)
             tecnicoNome: user?.nome || null,
             equipamentoNome: apiOS.modeloCompressor || 'Equipamento N/A',
-            
-            // --- Dados "Polyfill" ---
             equipamentoId: apiOS.equipamentoId || 'N/A', 
             clienteId: apiOS.clienteId || null,
             tipo: mapTipo(apiOS.tipo || 'Corretivo'),
             detalhes: apiOS.detalhes || 'Nenhum detalhe fornecido.',
-            tecnicoId: apiOS.tecnicoId || user?.id || null, // Usa o ID do usuário logado
+            tecnicoId: apiOS.tecnicoId || user?.id || null, 
           };
         });
-        // --- FIM DA TRADUÇÃO ---
 
-        // --- 3. LÓGICA DE FILTRO REMOVIDA ---
-        // Assumindo que a API GET /chamado (com token de técnico)
-        // JÁ RETORNA apenas as OSs desse técnico.
         setAllOrdens(enriched);
 
       } catch (error: any) {
@@ -100,9 +93,9 @@ export default function ManutentorOrdensServicoPage() {
     
     fetchOrdens();
 
-  }, [role, user, token]); // Roda se a role, usuário ou token mudar
+  }, [role, user, token]);
 
-  // --- 4. Filtra a lista com base nos estados (useMemo) ---
+  // --- Filtra a lista ---
   const filteredOrdens = useMemo(() => {
     return allOrdens.filter(os => {
       const searchMatch = searchTerm === '' ||
@@ -116,10 +109,10 @@ export default function ManutentorOrdensServicoPage() {
     });
   }, [allOrdens, searchTerm, tipoFilter]);
 
-  // --- 5. Separa as listas para as Abas ---
-  const pendentes = filteredOrdens.filter(os => os.status === 'Pendente');
-  const emAndamento = filteredOrdens.filter(os => os.status === 'Em Andamento');
-  const concluidas = filteredOrdens.filter(os => os.status === 'Concluída');
+  // --- Contagem para KPIs (Mantido apenas para os Cards) ---
+  const pendentes = allOrdens.filter(os => os.status === 'Pendente');
+  const emAndamento = allOrdens.filter(os => os.status === 'Em Andamento');
+  const concluidas = allOrdens.filter(os => os.status === 'Concluída');
 
   // --- RENDERIZAÇÃO DE LOADING ---
   if (isLoading) {
@@ -131,13 +124,22 @@ export default function ManutentorOrdensServicoPage() {
      );
   }
 
+  // Helper para cor do status na tabela
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Concluída': return 'bg-green-100 text-green-700 border-green-200';
+      case 'Em Andamento': return 'bg-blue-100 text-blue-700 border-blue-200';
+      default: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    }
+  };
+
   return (
     <div className="space-y-6">
       
       {/* 1. CABEÇALHO */}
       <OsPageHeader role={role} />
 
-      {/* 2. CARDS KPI (Customizados para o técnico) */}
+      {/* 2. CARDS KPI */}
       <OsKpiCards 
         pendentes={pendentes.length}
         emAndamento={emAndamento.length}
@@ -152,14 +154,78 @@ export default function ManutentorOrdensServicoPage() {
         onTipoChange={setTipoFilter}
       />
 
-      {/* 4. ABAS E TABELAS */}
-      <OsTabs
-        pendentes={pendentes}
-        emAndamento={emAndamento}
-        concluidas={concluidas}
-        role={role}
-        // Não precisa mais passar 'tecnicos'
-      />
+      {/* 4. TABELA DE DADOS (Substituindo as Tabs) */}
+      <div className="rounded-md border bg-card text-card-foreground shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
+              <tr>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Equipamento</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Data Abertura</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredOrdens.length > 0 ? (
+                filteredOrdens.map((os) => (
+                  <tr key={os.id} className="hover:bg-muted/5 transition-colors">
+                    <td className="px-4 py-3 font-medium">#{os.id}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{os.equipamentoNome}</div>
+                      {/* <div className="text-xs text-muted-foreground">Modelo X</div> se tiver */}
+                    </td>
+                    <td className="px-4 py-3">{os.clienteNome}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                        os.tipo === 'Preventiva' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                      }`}>
+                        {os.tipo}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {new Date(os.dataAbertura).toLocaleDateString('pt-BR')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(os.status)}`}>
+                        {os.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {/* Botão de ação genérico ou link para detalhes */}
+                      <Link 
+                        href={`/dashboard/ordens/${os.id}`} 
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        title="Ver Detalhes"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <FileText className="h-8 w-8 opacity-20" />
+                      <p>Nenhuma Ordem de Serviço encontrada.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* Contador simples no rodapé da tabela */}
+      <div className="text-xs text-muted-foreground text-right">
+        Mostrando {filteredOrdens.length} registros
+      </div>
+
     </div>
   );
 }
