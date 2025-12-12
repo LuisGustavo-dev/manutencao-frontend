@@ -310,6 +310,8 @@ export default function AdminEquipamentosPage() {
           {modalState.type === 'history' && modalState.equipment && (
             <HistoryModalContent 
               equipmentName={modalState.equipment.tipo} // <-- Usa o 'tipo'
+              equipmentId={modalState.equipment.id}
+              token={token || ''}
             />
           )}
           {modalState.type === 'new' && (
