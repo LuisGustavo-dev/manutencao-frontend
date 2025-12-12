@@ -246,7 +246,7 @@ export default function ManutentorHomePage() {
             <CardTitle>Minhas Tarefas</CardTitle>
             <CardDescription>
                 {/* Mostra "Atribuídas a..." se houver dados, senão genérico */}
-                {tarefas.length > 0 ? `Cliente: ${tarefas[0].name || 'Vários'}` : 'Suas atividades'}
+                 
             </CardDescription>
           </CardHeader>
           <CardContent>

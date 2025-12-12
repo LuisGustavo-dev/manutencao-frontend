@@ -2,10 +2,15 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-// import { mockEquipamentos, mockOrdensServico, mockHistorico } from '@/lib/mock-data'; // <-- MOCKS REMOVIDOS
-import type { Equipamento } from '@/lib/mock-data'; // <-- Importa o TIPO
-import { useAuth } from '@/app/contexts/authContext'; // <-- Importa o Auth real
+import { io } from "socket.io-client"; // <--- IMPORTANTE: Import do Socket.io
+import Link from 'next/link';
+import toast from 'react-hot-toast';
 
+// --- CONTEXTOS E MOCKS (Do seu projeto) ---
+import type { Equipamento } from '@/lib/mock-data'; 
+import { useAuth } from '@/app/contexts/authContext'; 
+
+// --- UI COMPONENTS ---
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +27,8 @@ import {
   DialogContent, 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+
+// --- ICONS ---
 import { 
   HardHat, 
   Wrench, 
@@ -29,31 +36,42 @@ import {
   Droplet,
   Wind,
   Bolt,
-  Archive,
   History,
   CheckCircle,
   AlertCircle,
-  Loader2 
+  Loader2,
+  Activity,
+  RefreshCcw,
+  CheckSquare,
+  Square
 } from "lucide-react";
-import toast from 'react-hot-toast'; 
 
+// --- COMPONENTES DE FORMULÁRIO ---
 import { FormChecklistCliente } from './components/FormChecklistCliente';
 import { FormChecklistManutentorCorretiva } from './components/FormChecklistManutentorCorretiva';
-import Link from 'next/link';
 
-// --- TIPO PARA O HISTÓRICO VINDO DA API ---
+// --- TIPOS ---
+
 type ApiHistoricoItem = {
   id: number;
   data: string;
   tipo: string;
-  tecnico: string; // API não fornece, será 'N/A'
+  tecnico: string;
   status: string;
 };
 
+type ChecklistItem = {
+  id: number;
+  nomeChecklist: string;
+  estado: boolean;
+  observacao: string | null;
+  operacional: boolean;
+  urlMedia: string | null;
+};
 
+// --- WRAPPER PRINCIPAL ---
 export default function EquipamentoPageWrapper() {
   return (
-    // O Suspense é necessário para useSearchParams()
     <Suspense fallback={
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -64,32 +82,33 @@ export default function EquipamentoPageWrapper() {
   );
 }
 
+// --- COMPONENTE DA PÁGINA ---
 function EquipamentoPage() {
   const searchParams = useSearchParams();
   const router = useRouter(); 
   const pathname = usePathname(); 
   const id = searchParams.get('id');
   
-  const { role, token } = useAuth(); // <-- Usa o Auth real
+  const { role, token } = useAuth();
 
-  // --- ESTADOS VINDOS DA API ---
+  // --- ESTADOS GERAIS ---
   const [equipamento, setEquipamento] = useState<Equipamento | null>(null);
   const [historico, setHistorico] = useState<ApiHistoricoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // --- ESTADO DE STATUS LOCAL ---
   const [status, setStatus] = useState<'Disponível' | 'Manutencao' | null>(null);
-
-  // --- 1. GATILHO PARA RECARREGAR OS DADOS ---
   const [refetchToggle, setRefetchToggle] = useState(false);
 
+  // --- ESTADOS DE MODAL ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<'cliente' | 'corretiva' | null>(null);
-  
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
 
-  // --- FETCH DOS DADOS ---
+  // --- ESTADOS PARA TEMPO REAL ---
+  const [checklistAtivo, setChecklistAtivo] = useState<ChecklistItem[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+
+  // 1. FETCH DOS DADOS DO EQUIPAMENTO (Carregamento Inicial Estático)
   useEffect(() => {
     if (!id || !token) {
       setIsLoading(false);
@@ -98,7 +117,6 @@ function EquipamentoPage() {
     }
 
     const fetchData = async () => {
-      // (Não reseta o loading se for apenas um refetch, para evitar piscar a tela)
       if (equipamento === null) {
         setIsLoading(true);
       }
@@ -118,8 +136,6 @@ function EquipamentoPage() {
 
         const apiData = await response.json();
 
-        // --- TRANSFORMAÇÃO DOS DADOS DA API ---
-        
         const statusManutencao: 'Disponível' | 'Manutencao' = 
           apiData.status === 'disponivel' ? 'Disponível' : 'Manutencao';
         
@@ -131,8 +147,6 @@ function EquipamentoPage() {
           tensao: `${apiData.tensao}V`, 
           aplicacao: apiData.aplicacao,
           statusManutencao: statusManutencao,
-          
-          // --- CAMPOS FALTANTES (Valores Padrão) ---
           nome: apiData.nome || `Equipamento #${apiData.id}`, 
           tipo: apiData.tipo || 'Não especificado', 
           clienteId: apiData.clienteId || null, 
@@ -153,9 +167,6 @@ function EquipamentoPage() {
 
         setEquipamento(transformedEq);
         setHistorico(transformedHistory.slice(0, 3)); 
-        
-        // --- ATUALIZADO: Define o status com base nos dados da API ---
-        // (Remove a lógica antiga do localStorage)
         setStatus(statusManutencao);
 
       } catch (err: any) {
@@ -167,8 +178,65 @@ function EquipamentoPage() {
     };
 
     fetchData();
-  }, [id, token, refetchToggle]); // <-- 2. GATILHO ADICIONADO AO ARRAY
+  }, [id, token, refetchToggle]);
 
+  // 2. NOVO EFFECT: WEBSOCKET LISTENER (TEMPO REAL)
+  // Substitui o setInterval anterior pelo Socket.IO
+  useEffect(() => {
+    // Só ativa o listener se tiver ID, Token e estiver em MANUTENÇÃO
+    if (!id || !token || status !== 'Manutencao') {
+      setChecklistAtivo([]); 
+      setLastUpdate(null);
+      return;
+    }
+
+    // Função de busca (chamada ao iniciar e quando o socket avisa)
+    const fetchChecklist = async () => {
+      try {
+        const response = await fetch(`http://localhost:3340/equipamento/${id}/realtime`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Garante array
+          const lista = Array.isArray(data) ? data : [data];
+          setChecklistAtivo(lista);
+          setLastUpdate(new Date()); // Atualiza o badge de horário
+        }
+      } catch (error) {
+        console.error("Erro ao buscar dados realtime:", error);
+      }
+    };
+
+    // --- CONEXÃO WEBSOCKET ---
+    // Conecta ao servidor (mesma porta do backend NestJS)
+    const socket = io('http://localhost:3340', {
+      transports: ['websocket'], // Força websocket para evitar atrasos de long-polling
+    });
+
+    // Escuta o evento específico deste equipamento
+    // O backend envia: this.server.emit(`checklist-update-${equipamentoId}`, { refresh: true });
+    socket.on(`checklist-update-${id}`, (payload) => {
+      console.log("Evento Socket Recebido:", payload);
+      if (payload?.refresh) {
+        fetchChecklist();
+      }
+    });
+
+    // Chamada inicial para preencher a tela assim que entrar
+    fetchChecklist();
+
+    // Limpeza ao desmontar o componente ou sair do status de manutenção
+    return () => {
+      socket.disconnect();
+    };
+  }, [id, token, status]);
+
+  // --- Handlers ---
   useEffect(() => {
     setLoadingPath(null);
   }, [pathname]);
@@ -189,19 +257,12 @@ function EquipamentoPage() {
     setModalContent(null);
   }
 
-  // --- 3. NOVA FUNÇÃO DE CALLBACK ---
-  // Esta função é passada para os modais. 
-  // O modal fará a chamada da API, e ao ter sucesso, chamará esta função.
   const handleModalSuccess = () => {
-    closeModal(); // Fecha o modal
-    setRefetchToggle(prev => !prev); // 4. Dispara o refetch dos dados
+    closeModal();
+    setRefetchToggle(prev => !prev);
   };
 
-  // --- 5. FUNÇÕES ANTIGAS REMOVIDAS ---
-  // const handleSolicitarManutencao = () => { ... }; // <-- REMOVIDA
-  // const handleConcluirManutencao = () => { ... }; // <-- REMOVIDA
-
-  // --- RENDERIZAÇÃO DE LOADING E ERRO ---
+  // --- RENDERIZAÇÃO: LOADING E ERRO ---
   if (isLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center">
@@ -223,23 +284,24 @@ function EquipamentoPage() {
       </main>
     );
   }
-  // --- FIM DA RENDERIZAÇÃO DE LOADING E ERRO ---
 
-  const osAtiva = status === 'Manutencao'; 
-  const historicoPath = `/dashboard/${role?.toLowerCase()}/equipamentos/historico?id=${equipamento.id}`; 
-  
+  // --- RENDERIZAÇÃO PRINCIPAL ---
   return (
     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
       <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
         
+        {/* CABEÇALHO */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">{equipamento.nome}</h1>
-          <p className="font-semibold">{equipamento.aplicacao}</p>
+          <p className="font-semibold text-muted-foreground">{equipamento.aplicacao}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
+          {/* COLUNA ESQUERDA (2/3) */}
           <div className="lg:col-span-2 space-y-6">
+            
+            {/* CARD 1: STATUS E AÇÕES */}
             <Card>
               <CardHeader>
                 <CardTitle>Status e Ações</CardTitle>
@@ -264,24 +326,9 @@ function EquipamentoPage() {
               <CardFooter>
                 {role === 'Cliente' && (
                   <>
-                    {status === 'Disponível' ? (
+                    {status === 'Disponível' && (
                       <Button variant="destructive" size="lg" className="w-full" onClick={() => openModal('cliente')}>
                         <AlertCircle className="mr-2 h-5 w-5" /> Solicitar Manutenção Corretiva
-                      </Button>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        size="lg" 
-                        className="w-full" 
-                        onClick={() => alert('Navegar para OS Ativa (Cliente)')} 
-                        disabled={loadingPath === 'clientePath'}
-                      >
-                        {loadingPath === 'clientePath' ? (
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        ) : (
-                          <History className="mr-2 h-5 w-5" />
-                        )}
-                        Acompanhar Chamado Ativo
                       </Button>
                     )}
                   </>
@@ -307,6 +354,77 @@ function EquipamentoPage() {
               </CardFooter>
             </Card>
 
+            {/* CARD 2: ACOMPANHAMENTO EM TEMPO REAL (WEBSOCKET) */}
+            {status === 'Manutencao' && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-primary animate-pulse" />
+                      <CardTitle>Acompanhamento em Tempo Real</CardTitle>
+                    </div>
+                    {lastUpdate && (
+                      <Badge variant="outline" className="text-xs font-normal gap-1 bg-background/50">
+                        <RefreshCcw className="h-3 w-3" />
+                        Atualizado às {lastUpdate.toLocaleTimeString()}
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription>
+                    Monitorando atividades da ordem de serviço atual.
+                  </CardDescription>
+                </CardHeader>
+                <Separator className="bg-primary/10" />
+                <CardContent className="pt-4">
+                  {checklistAtivo.length > 0 ? (
+                    <div className="space-y-4">
+                      {checklistAtivo.map((item) => (
+                        <div 
+                          key={item.id} 
+                          className={`flex items-start gap-3 p-3 rounded-md transition-colors ${item.estado ? 'bg-green-500/10 border border-green-500/20' : 'bg-background border border-border'}`}
+                        >
+                          {/* Ícone de Check */}
+                          <div className="mt-0.5">
+                            {item.estado ? (
+                              <CheckSquare className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <Square className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 space-y-1">
+                            <div className="flex justify-between items-start">
+                              <p className={`font-medium text-sm ${item.estado ? 'text-green-900 dark:text-green-100' : ''}`}>
+                                {item.nomeChecklist}
+                              </p>
+                              {item.estado && (
+                                <Badge variant="secondary" className="text-[10px] h-5 bg-green-200 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-300">
+                                  Concluído
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            {/* Observação */}
+                            {item.observacao && (
+                              <p className="text-xs text-muted-foreground bg-black/5 dark:bg-white/5 p-2 rounded mt-1">
+                                <span className="font-semibold">Obs:</span> {item.observacao}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 text-muted-foreground space-y-2">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <p className="text-sm">Aguardando início das atividades...</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* CARD 3: FICHA TÉCNICA */}
             <Card>
               <CardHeader>
                 <CardTitle>Ficha Técnica</CardTitle>
@@ -340,18 +458,12 @@ function EquipamentoPage() {
                     <p className="font-semibold">{equipamento.tensao}</p>
                   </div>
                 </div>
-                {/* <div className="flex items-center gap-3">
-                  <Archive className="h-6 w-6 text-primary" />
-                  <div>
-                    <Label className="text-xs">Aplicação</Label>
-                    <p className="font-semibold">{equipamento.aplicacao}</p>
-                  </div>
-                </div> */}
               </CardContent>
             </Card>
 
           </div>
           
+          {/* COLUNA DIREITA (1/3) */}
           <div className="lg:col-span-1 space-y-6">
             <Card>
               <CardHeader>
@@ -359,7 +471,6 @@ function EquipamentoPage() {
                 <CardDescription>Últimas 3 intervenções</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                
                 {historico.length > 0 ? (
                   historico.map((item) => (
                     <div key={item.id} className="flex items-start gap-3">
@@ -383,20 +494,20 @@ function EquipamentoPage() {
         </div>
       </main>
       
-      {/* --- 6. ATUALIZAÇÃO DA CHAMADA DO MODAL --- */}
+      {/* MODAL / DIALOG */}
       <DialogContent className="sm:max-w-2xl">
         {modalContent === 'cliente' && (
           <FormChecklistCliente 
-            equipamentoId={equipamento.id} // <-- 1. Passa o ID
-            onClose={closeModal}             // <-- 2. Passa a função de fechar
-            onSuccess={handleModalSuccess}   // <-- 3. Passa a nova função de sucesso
+            equipamentoId={equipamento.id} 
+            onClose={closeModal} 
+            onSuccess={handleModalSuccess} 
           />
         )}
         {modalContent === 'corretiva' && (
           <FormChecklistManutentorCorretiva 
-            equipamentoId={equipamento.id} // <-- 1. Passe o ID do equipamento
-            onClose={closeModal}           // <-- 2. Passe a função de fechar
-            onSuccess={handleModalSuccess} // <-- 3. Passe a função de sucesso
+            equipamentoId={equipamento.id} 
+            onClose={closeModal} 
+            onSuccess={handleModalSuccess}
           />
         )}
       </DialogContent>

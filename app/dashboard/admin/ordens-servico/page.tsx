@@ -1,18 +1,19 @@
 'use client';
+
 import { useEffect, useState, useMemo } from 'react';
-import type { OrdemServico, Tecnico } from '@/lib/mock-data';
+import type { OrdemServico, Tecnico } from '@/lib/mock-data'; 
 import { useAuth } from '@/app/contexts/authContext';
 
 // Importa os componentes do diretório LOCAL
 import { OsPageHeader } from './components/OsPageHeader';
 import { OsKpiCards } from './components/OsKpiCards';
 import { OsFilterBar } from './components/OsFilterBar';
-// import { OsTabs } from './components/OsTabs'; // REMOVIDO
-import { Loader2, Calendar, User, Wrench, MoreVertical } from 'lucide-react';
+import { OrderDetails } from './components/OrderDetails';
+
+import { Loader2, Calendar, User, Wrench, MoreVertical, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Componentes de UI (Supondo uso de Shadcn ou Tailwind puro)
-import { Badge } from '@/components/ui/badge'; // Ajuste o import conforme seu projeto
+// Componentes de UI
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -30,16 +31,74 @@ export type EnrichedOS = OrdemServico & {
 export default function AdminOrdensServicoPage() {
   const { role, token } = useAuth(); 
 
-  // --- Estados ---
+  // --- Estados de Dados ---
   const [allOrdens, setAllOrdens] = useState<EnrichedOS[]>([]);
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState('todos');
 
+  // --- Estados do Modal de Detalhes (Visualização) ---
+  const [selectedOsId, setSelectedOsId] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // --- NOVOS ESTADOS: Modal de Atribuição de Técnico ---
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [osIdToAssign, setOsIdToAssign] = useState<string | null>(null);
+  const [selectedTechId, setSelectedTechId] = useState<string>('');
+  const [isAssigning, setIsAssigning] = useState(false);
+
   // --- GATILHO PARA RECARREGAR OS DADOS ---
   const [refetchToggle, setRefetchToggle] = useState(false);
   const triggerRefetch = () => setRefetchToggle(prev => !prev);
+
+  // --- Função para abrir o modal de detalhes ---
+  const handleOpenDetails = (osId: string) => {
+    setSelectedOsId(osId);
+    setIsDetailsOpen(true);
+  };
+
+  // --- NOVA FUNÇÃO: Abrir modal de atribuição ---
+  const handleOpenAssignModal = (osId: string) => {
+    setOsIdToAssign(osId);
+    setSelectedTechId(''); // Reseta seleção anterior
+    setIsAssignModalOpen(true);
+  };
+
+  // --- NOVA FUNÇÃO: Executar a atribuição na API ---
+  const handleAssignTechnician = async () => {
+    if (!osIdToAssign || !selectedTechId) {
+        toast.error("Selecione um técnico.");
+        return;
+    }
+
+    setIsAssigning(true);
+    try {
+        // Rota: chamado/atribuir-tecnico/tecnico/:tecnicoID/chamado/:chamadoID
+        const response = await fetch(`http://localhost:3340/chamado/atribuir-tecnico/tecnico/${selectedTechId}/chamado/${osIdToAssign}`, {
+            method: 'POST', 
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Erro ao atribuir técnico.');
+        }
+
+        toast.success("Técnico atribuído com sucesso!");
+        setIsAssignModalOpen(false); // Fecha o modal
+        triggerRefetch(); // Recarrega a lista para mostrar o novo técnico na tabela
+
+    } catch (error: any) {
+        console.error(error);
+        toast.error(error.message || "Erro ao conectar com o servidor.");
+    } finally {
+        setIsAssigning(false);
+    }
+  };
 
   // --- BUSCAR TUDO ---
   useEffect(() => {
@@ -78,7 +137,7 @@ export default function AdminOrdensServicoPage() {
         // Processa Ordens
         const enriched: EnrichedOS[] = ordensData.map((apiOS: any) => {
           const mapStatus = (status: string): 'Pendente' | 'Em Andamento' | 'Concluída' => {
-            const s = status.toLowerCase();
+            const s = status ? status.toLowerCase() : '';
             if (s === 'pendente') return 'Pendente';
             if (s === 'em andamento') return 'Em Andamento';
             if (s === 'finalizado' || s === 'concluida') return 'Concluída';
@@ -133,7 +192,6 @@ export default function AdminOrdensServicoPage() {
     });
   }, [allOrdens, searchTerm, tipoFilter]);
 
-  // Função auxiliar para cor do Status
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'Concluída': return 'bg-green-100 text-green-800 hover:bg-green-100 border-green-200';
@@ -154,9 +212,7 @@ export default function AdminOrdensServicoPage() {
   return (
     <div className="space-y-6 pb-10">
       
-
-
-      {/* KPI Cards mantidos pois dão um resumo rápido */}
+      {/* KPI Cards */}
       <OsKpiCards 
         pendentes={allOrdens.filter(os => os.status === 'Pendente').length}
         emAndamento={allOrdens.filter(os => os.status === 'Em Andamento').length}
@@ -170,7 +226,7 @@ export default function AdminOrdensServicoPage() {
         onTipoChange={setTipoFilter}
       />
 
-      {/* NOVA VISUALIZAÇÃO: TABELA UNIFICADA */}
+      {/* TABELA UNIFICADA */}
       <div className="rounded-md border bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -219,7 +275,7 @@ export default function AdminOrdensServicoPage() {
                       {os.tecnicoNome ? (
                         <div className="flex items-center gap-2 text-gray-700">
                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                              {os.tecnicoNome.charAt(0)}
+                             {os.tecnicoNome.charAt(0)}
                            </div>
                            {os.tecnicoNome}
                         </div>
@@ -239,23 +295,26 @@ export default function AdminOrdensServicoPage() {
                       </div>
                     </td>
 
-                    {/* Ações (Menu Dropdown ou Botão) */}
+                    {/* Ações */}
                     <td className="px-4 py-3 align-top text-right">
-                       <DropdownMenu>
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { /* Lógica de Ver Detalhes */ }}>
+                          <DropdownMenuItem onClick={() => handleOpenDetails(os.id)}>
                             Ver Detalhes
                           </DropdownMenuItem>
+                          
+                          {/* Botão de Atribuir Técnico Modificado */}
                           {os.status === 'Pendente' && (
-                             <DropdownMenuItem onClick={() => { /* Lógica de Atribuir */ }}>
+                             <DropdownMenuItem onClick={() => handleOpenAssignModal(os.id)}>
                                Atribuir Técnico
                              </DropdownMenuItem>
                           )}
+                          
                           <DropdownMenuItem className="text-red-600">
                             Cancelar OS
                           </DropdownMenuItem>
@@ -275,6 +334,79 @@ export default function AdminOrdensServicoPage() {
           </table>
         </div>
       </div>
+
+      {/* Componente Modal de Detalhes (Visualização) */}
+      <OrderDetails 
+        osId={selectedOsId}
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+      />
+
+      {/* --- NOVO: MODAL DE ATRIBUIÇÃO DE TÉCNICO --- */}
+      {isAssignModalOpen && (
+        // Alterado aqui: Removido 'backdrop-blur-sm'
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Cabeçalho do Modal */}
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Atribuir Técnico</h3>
+                <button onClick={() => setIsAssignModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
+
+            <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                    Selecione o técnico responsável pela OS <span className="font-medium text-gray-900">#{osIdToAssign}</span>.
+                </p>
+
+                {/* Select Nativo Estilizado (para garantir funcionamento) */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Técnico Disponível</label>
+                    <select 
+                        className="w-full rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedTechId}
+                        onChange={(e) => setSelectedTechId(e.target.value)}
+                    >
+                        <option value="" disabled>Selecione um técnico...</option>
+                        {tecnicos.map((tec) => (
+                            <option key={tec.id} value={tec.id}>
+                                {tec.nome}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex justify-end gap-3 pt-2">
+                    <Button variant="outline" onClick={() => setIsAssignModalOpen(false)} disabled={isAssigning}>
+                        Cancelar
+                    </Button>
+                    <Button 
+                        onClick={handleAssignTechnician} 
+                        disabled={!selectedTechId || isAssigning}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        {isAssigning ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Salvando...
+                            </>
+                        ) : (
+                            <>
+                                <Check className="mr-2 h-4 w-4" />
+                                Confirmar Atribuição
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

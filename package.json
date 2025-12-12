@@ -67,7 +67,7 @@
     "recharts": "^2.15.4",
     "shadcn": "^2.4.0-canary.12",
     "slick-carousel": "^1.8.1",
-    "socket.io-client": "^4.7.5",
+    "socket.io-client": "^4.8.1",
     "sweetalert2": "^11.12.3",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
