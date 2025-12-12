@@ -273,6 +273,8 @@ export default function ManutentorEquipamentosPage() {
           {modalState.type === 'history' && modalState.equipment && (
             <HistoryModalContent 
               equipmentName={modalState.equipment.tipo}
+ equipmentId={modalState.equipment.id}
+ token={token || ''}
             />
           )}
         </DialogContent>
