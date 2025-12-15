@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Calendar, User, Wrench, ImageIcon, Clock, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import toast from 'react-hot-toast';
 
 interface MidiaResposta {
   observacao: string;
@@ -174,16 +173,16 @@ export function OrderDetails({ osId, isOpen, onClose }: OrderDetailsProps) {
               </div>
             </div>
 
-            {/* --- EVIDÊNCIAS (Renderiza apenas se houver URLs válidas) --- */}
-            {data.detalhes?.midiasUser?.filter(url => url).length > 0 && (
+            {/* --- EVIDÊNCIAS --- */}
+            {/* CORREÇÃO AQUI: Usamos ( ... || []) para evitar erro se for null */}
+            {(data.detalhes.midiasUser || []).filter(url => url).length > 0 && (
               <div className="space-y-2">
                 <h3 className="font-semibold flex items-center gap-2 text-gray-900">
                   <ImageIcon className="w-4 h-4" />
                   Evidências / Mídias
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* Fazemos o map apenas nos itens filtrados (válidos) */}
-                  {data.detalhes.midiasUser
+                  {(data.detalhes.midiasUser || [])
                     .filter(url => url) // Remove null, undefined ou string vazia
                     .map((url, index) => (
                     <a 
@@ -217,8 +216,8 @@ export function OrderDetails({ osId, isOpen, onClose }: OrderDetailsProps) {
                             {resp.midias && resp.midias.length > 0 && (
                                 <div className="flex gap-2 overflow-x-auto py-2">
                                     {resp.midias.map((m, mIdx) => (
-                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img key={mIdx} src={m} alt="Anexo resposta" className="h-16 w-16 object-cover rounded border" />
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img key={mIdx} src={m} alt="Anexo resposta" className="h-16 w-16 object-cover rounded border" />
                                     ))}
                                 </div>
                             )}

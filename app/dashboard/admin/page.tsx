@@ -70,7 +70,7 @@ export default function AdminHomePage() {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:3340/dashboard/admin?_=${new Date().getTime()}`, { 
+      const response = await fetch(`http://localhost:3340/dashboard/admin`, { 
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` },
       });

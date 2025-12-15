@@ -174,7 +174,7 @@ export default function ClienteHomePage() {
           <Button 
             size="lg" 
             className="w-full md:w-auto"
-            onClick={() => router.push('/dashboard/equipamentos')}
+            onClick={() => router.push('/dashboard/cliente/equipamentos')}
           >
             <PlusCircle className="mr-2 h-5 w-5" />
             Abrir Chamado Corretivo

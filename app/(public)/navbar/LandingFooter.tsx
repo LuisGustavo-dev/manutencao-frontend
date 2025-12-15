@@ -20,7 +20,8 @@ export function LandingFooter() {
             <span className="text-2xl font-bold">MGR Refrigeração</span>
           </Link>
           <p className="text-muted-foreground">
-            Engenharia de Frio que Gera Solução.
+            Solução do Frio
+            Eficiência e economia
           </p>
           <p className="text-muted-foreground">
             Na indústria, refrigeração parada é prejuízo na certa. Nós garantimos que sua operação funcione, protegendo seu produto e sua lucratividade. Deixe o frio conosco e foque em produzir.

@@ -15,7 +15,6 @@ export const metadata: Metadata = {
     default: 'MGR Refrigeração', 
     template: '%s | MGR Refrigeração', 
   },
-  description: 'Sistema de Gerenciamento de Manutenção MGR',
   icons: {
     icon: '/favicon.ico', 
   },
