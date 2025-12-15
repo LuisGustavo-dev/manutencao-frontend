@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 // Ícones (ShieldCheck foi removido)
-import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, Settings, HardHat, Clock } from "lucide-react" 
+import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, Settings, HardHat, Clock, CalendarDays, DollarSign } from "lucide-react" 
 import toast from "react-hot-toast"
 
 interface AppSidebarProps {
@@ -34,7 +34,14 @@ const fullMenuConfig = [
             { name: "Equipamentos", icon: Package, path: "/dashboard/admin/equipamentos" },
             { name: "Clientes", icon: Users, path: "/dashboard/admin/clientes" },
             { name: "Técnicos", icon: HardHat, path: "/dashboard/admin/tecnicos" },
-            { name: "Ponto Digital", icon: Clock, path: "/dashboard/admin/ponto" },
+        ]
+    },
+    {
+        label: "Colaboradores",
+        items: [
+            { name: "Controle de Ponto", icon: Clock, path: "/dashboard/admin/ponto" },
+            { name: "Agenda de Visitas", icon: CalendarDays, path: "/dashboard/admin/agenda" },
+            { name: "Aprovar Reembolsos", icon: DollarSign, path: "/dashboard/admin/reembolsos" },
         ]
     },
 ];

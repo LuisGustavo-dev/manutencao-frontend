@@ -166,7 +166,7 @@ export default function AdminPontoPage() {
       </div>
 
       {/* --- BARRA DE FILTROS (NOVO DESIGN SUPERIOR) --- */}
-      <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
+      <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-end justify-between">
          
          <div className="flex flex-col md:flex-row gap-4 w-full">
             {/* 1. Busca por Nome/Email */}
