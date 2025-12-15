@@ -4,14 +4,15 @@ import React, { useState, useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/app/contexts/authContext" 
 
-// Seus componentes customizados
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar" 
-// Componentes Shadcn
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-// Ícones (ShieldCheck foi removido)
-import { LogOut, Wrench, Package, Home, Users, User as UserIcon, Loader2, Settings, HardHat, Clock } from "lucide-react" 
+// --- ÍCONES NOVOS IMPORTADOS ---
+import { 
+    LogOut, Clock, Loader2, Home, 
+    CalendarDays, DollarSign, History, User 
+} from "lucide-react" 
 import toast from "react-hot-toast"
 
 interface AppSidebarProps {
@@ -19,27 +20,26 @@ interface AppSidebarProps {
     setCollapsed: (value: boolean) => void
 }
 
-// --- CONFIGURAÇÃO DE MENU SOMENTE DO ADMIN ---
-const fullMenuConfig = [
+// --- CONFIGURAÇÃO DE MENU DO COLABORADOR ATUALIZADA ---
+const colaboradorMenuConfig = [
     {
-        label: "Painel",
+        label: "Dia a Dia",
         items: [
-            { name: "Visão Geral", icon: Home, path: "/dashboard/admin" },
+            { name: "Registrar Ponto", icon: Clock, path: "/dashboard/colaborador" }, // Dashboard principal
+            { name: "Minha Agenda", icon: CalendarDays, path: "/dashboard/colaborador/agenda" },
         ]
     },
     {
-        label: "Gestão",
+        label: "Gestão Pessoal",
         items: [
-            { name: "Ordens de Serviço", icon: Wrench, path: "/dashboard/admin/ordens-servico" },
-            { name: "Equipamentos", icon: Package, path: "/dashboard/admin/equipamentos" },
-            { name: "Clientes", icon: Users, path: "/dashboard/admin/clientes" },
-            { name: "Técnicos", icon: HardHat, path: "/dashboard/admin/tecnicos" },
-            { name: "Ponto Digital", icon: Clock, path: "/dashboard/admin/ponto" },
+            { name: "Histórico de Ponto", icon: History, path: "/dashboard/colaborador/historico" },
+            { name: "Reembolsos", icon: DollarSign, path: "/dashboard/colaborador/reembolso" },
+            { name: "Meu Perfil", icon: User, path: "/dashboard/colaborador/perfil" },
         ]
     },
 ];
 
-export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
+export default function ColaboradorSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
     const { logout, user } = useAuth()
     const router = useRouter()
     const pathname = usePathname();
@@ -50,9 +50,9 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pathname]);
 
-    const accessibleMenuGroups = fullMenuConfig;
+    const accessibleMenuGroups = colaboradorMenuConfig;
 
-    const handleLogout = () => { logout(); toast.success("Você saiu com sucesso!"); };
+    const handleLogout = () => { logout(); toast.success("Até logo!"); };
     
     const handleClick = (item: any) => {
         if (item.disabled) {
@@ -68,8 +68,8 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
 
     const atalhos = [{ name: "Sair", icon: LogOut, action: handleLogout }];
     
-    const userName = user?.nome || "Administrador";
-    const userEmail = user?.email || "admin@mgr.com"; // <-- Atualizado
+    const userName = user?.nome || "Colaborador";
+    const userEmail = user?.email || "colaborador@mgr.com"; 
     const userFallback = userName.charAt(0).toUpperCase();
 
     const renderMenuItem = (item: any) => {
@@ -96,18 +96,15 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
     const renderDropdownItem = (item: any) => {
         const Icon = item.icon;
         const targetPath = item.path; 
-        
-        const isLoading = loadingPath === targetPath;
         const isActive = pathname === targetPath;
 
         return (
             <DropdownMenuItem
                 key={item.name}
                 onClick={() => handleClick(item)}
-                className={`${item.disabled ? "cursor-not-allowed opacity-50" : ""} ${isLoading ? "cursor-wait opacity-70" : ""} ${isActive ? "bg-primary/10 text-primary cursor-default" : ""} `}
-                disabled={isLoading || item.disabled}
+                className={`${isActive ? "bg-primary/10 text-primary" : ""}`}
             >
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icon className="mr-2 h-4 w-4" />}
+                <Icon className="mr-2 h-4 w-4" />
                 {item.name}
             </DropdownMenuItem>
         );
@@ -116,26 +113,21 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
     return (
         <Sidebar className={`bg-card h-full flex flex-col justify-between transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
             
-            {/* --- CABEÇALHO ATUALIZADO --- */}
             <SidebarHeader className={`bg-card flex items-center p-2 transition-all duration-300 ${collapsed ? "justify-center items-center" : "justify-between"}`}>
                 <SidebarMenuButton
                     size="lg"
                     onClick={() => setCollapsed(!collapsed)}
                     className="cursor-pointer flex items-center justify-center gap-2"
                 >
-                    {/* Ícone trocado por Imagem */}
                     <img src="/assets/logo.png" alt="MGR Logo" className="h-8 w-8 object-contain" />
-                    
                     {!collapsed && (
                         <div className="grid flex-1 text-left text-sm leading-tight">
-                            {/* Título Trocado */}
                             <span className="truncate font-semibold">MGR Refrigeração</span>
-                            <span className="truncate text-xs text-muted-foreground">Painel do Admin</span>
+                            <span className="truncate text-xs text-muted-foreground">Área do Colaborador</span>
                         </div>
                     )}
                 </SidebarMenuButton>
             </SidebarHeader>
-            {/* --- FIM DA ATUALIZAÇÃO --- */}
 
             <SidebarContent className="bg-card flex-1 transition-all duration-300">
                 {accessibleMenuGroups.map(({ label, items }) => (
@@ -169,13 +161,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AppSidebarProp
                             </DropdownMenuTrigger>
                             {!collapsed && (
                                 <DropdownMenuContent side="top" align="start" sideOffset={4} className="min-w-[200px] rounded-lg">
-                                    {accessibleMenuGroups.map((group, groupIndex) => (
-                                        <React.Fragment key={group.label}>
-                                            <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                                            {group.items.map((item) => renderDropdownItem(item))}
-                                            {groupIndex < accessibleMenuGroups.length - 1 && <DropdownMenuSeparator />}
-                                        </React.Fragment>
-                                    ))}
+                                    <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     {atalhos.map(renderDropdownItem)}
                                 </DropdownMenuContent>

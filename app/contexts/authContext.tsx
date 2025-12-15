@@ -4,15 +4,14 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter } from 'next/navigation';
 import type { Usuario } from '@/lib/mock-data'; // Continua usando o tipo
 
-// --- Helper para mapear roles do backend para o frontend ---
-// (Isso estava na sua LoginPage, mas o Context é um lugar melhor)
-type AppRole = 'Admin' | 'Manutentor' | 'Cliente';
+type AppRole = 'Admin' | 'Manutentor' | 'Cliente' | 'Colaborador';
 
 const mapApiRoleToAppRole = (apiRole: string): AppRole => {
   const role = apiRole.toLowerCase();
   if (role === 'admin') return 'Admin';
   if (role === 'technical') return 'Manutentor';
-  return 'Cliente'; // 'user' e qualquer outro
+  if (role === 'collaborator') return 'Colaborador'; // Novo mapeamento
+  return 'Cliente'; 
 };
 
 interface AuthContextType {

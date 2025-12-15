@@ -43,15 +43,112 @@ export type Usuario = {
   email: string;
   senha: string; 
   nome: string; 
-  role: 'Cliente' | 'Manutentor' | 'Admin';
+  role: 'Cliente' | 'Manutentor' | 'Admin' | 'Colaborador';
   clienteId: string | null;
   cnpj: string | null; 
   razaoSocial: string | null; 
 };
 
-// --- CORREÇÃO APLICADA ABAIXO ---
-// Os campos 'cnpj' e 'razaoSocial' foram adicionados a todos os usuários
-// para corresponder ao tipo 'Usuario' atualizado.
+export type TipoEventoPonto = 'CHEGADA' | 'INICIO_ALMOCO' | 'VOLTA_ALMOCO' | 'SAIDA';
+
+export type RegistroPonto = {
+  id: string;
+  usuarioId: string;
+  data: string; // YYYY-MM-DD
+  horarios: {
+    chegada?: string;
+    inicioAlmoco?: string;
+    voltaAlmoco?: string;
+    saida?: string;
+  };
+  statusDia: 'ABERTO' | 'FECHADO';
+  horasTrabalhadas?: string; // Ex: "06:30"
+};
+
+export type RegistroServico = {
+  id: string;
+  usuarioId: string;
+  data: string; // Para facilitar filtro
+  clienteNome: string;
+  horarioInicio: string;
+  horarioFim?: string;
+  atividade: string;
+  status: 'EM_ANDAMENTO' | 'FINALIZADO';
+};
+
+// --- GERADOR DE DADOS MOCKADOS (Para ter volume) ---
+
+const nomesTecnicos = [
+  "Luis Gustavo", "Ana Silva", "Carlos Souza", "Roberto Firmino", 
+  "Fernanda Lima", "João Pedro", "Mariana Costa", "Paulo Ricardo",
+  "Lucas Mendes", "Juliana Paes", "Marcos Viana", "Sofia Luz"
+];
+
+// 1. Gera Usuários
+export const mockUsuariosExpandido = nomesTecnicos.map((nome, i) => ({
+  id: `colab-${i + 1}`,
+  email: `${nome.split(' ')[0].toLowerCase()}@mgr.com`,
+  senha: '123',
+  nome: nome,
+  role: 'Colaborador' as const, // Forçando o tipo
+  clienteId: null,
+  cnpj: null,
+  razaoSocial: null
+}));
+
+// 2. Gera Pontos para "HOJE" (Para a demo sempre funcionar)
+const hoje = new Date().toISOString().split('T')[0];
+
+export const mockPontosExpandido: RegistroPonto[] = mockUsuariosExpandido.map((u, i) => {
+  // Simula alguns chegando tarde ou não vindo
+  if (i === 10) return null; // Um faltou
+
+  const atrasado = i % 4 === 0; // Alguns atrasados
+  const horaChegada = atrasado ? `08:${30 + i}` : `07:${50 + i}`;
+  
+  return {
+    id: `pt-${u.id}`,
+    usuarioId: u.id,
+    data: hoje,
+    statusDia: 'ABERTO',
+    horarios: {
+      chegada: horaChegada,
+      inicioAlmoco: i < 5 ? '12:00' : undefined, // Alguns já saíram pro almoço
+      voltaAlmoco: i < 3 ? '13:00' : undefined, // Alguns já voltaram
+      saida: undefined
+    }
+  };
+}).filter(Boolean) as RegistroPonto[];
+
+// 3. Gera Serviços para esses pontos
+export const mockServicosExpandido: RegistroServico[] = [];
+
+mockPontosExpandido.forEach((ponto, i) => {
+  // Serviço da manhã
+  mockServicosExpandido.push({
+    id: `srv-${ponto.id}-1`,
+    usuarioId: ponto.usuarioId,
+    data: hoje,
+    clienteNome: i % 2 === 0 ? "Padaria Pão Quente" : "Mercado Central",
+    horarioInicio: "09:00",
+    horarioFim: "11:30",
+    atividade: "Manutenção Preventiva - Ar Condicionado",
+    status: 'FINALIZADO'
+  });
+
+  // Serviço da tarde (apenas para quem já voltou do almoço)
+  if (ponto.horarios.voltaAlmoco) {
+    mockServicosExpandido.push({
+      id: `srv-${ponto.id}-2`,
+      usuarioId: ponto.usuarioId,
+      data: hoje,
+      clienteNome: "Sorveteria Gelato",
+      horarioInicio: "13:30",
+      atividade: "Troca de Gás",
+      status: 'EM_ANDAMENTO'
+    });
+  }
+});
 
 export const mockUsuarios: Usuario[] = [
   { 
@@ -88,8 +185,6 @@ export const mockUsuarios: Usuario[] = [
     razaoSocial: null
   },
 ];
-// --- FIM DA CORREÇÃO ---
-
 
 export const mockClientes: Cliente[] = [
   { id: 'cli-1', nomeFantasia: 'Padaria Pão Quente', razaoSocial: 'Pão Quente Ltda.', cnpj: '11.222.333/0001-44' },
