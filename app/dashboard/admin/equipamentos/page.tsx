@@ -1,327 +1,369 @@
-'use client';
-import { useState, useEffect, useMemo } from 'react';
-// import { mockEquipamentos, mockClientes } from '@/lib/mock-data'; // <-- REMOVIDO
-import type { Equipamento, Cliente } from '@/lib/mock-data'; // <-- Tipos ainda são usados
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useRouter } from 'next/navigation';
-import { 
-  Search,
-  Settings2,
-  Droplet,
-  Wind,
-  Bolt,
-  MoreVertical,
-  QrCode,
-  Pencil,
-  History,
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertTriangle,
+  Wrench,
+  CalendarCheck,
   Package,
-  Loader2 // <-- ADICIONADO
-} from 'lucide-react';
-import { useAuth } from '@/app/contexts/authContext'; // <-- ADICIONADO
-import toast from 'react-hot-toast'; // <-- ADICIONADO
+  Loader2,
+  // Link removido daqui para evitar confusão com ícones
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from "recharts";
+import { useAuth } from "@/app/contexts/authContext";
 
-// Importa os componentes de modal do DIRETÓRIO LOCAL
-import { QrCodeModalContent } from './components/QrCodeModalContent';
-import { EditEquipmentModalContent } from './components/EditEquipmentModalContent';
-import { HistoryModalContent } from './components/HistoryModalContent';
-import { NewEquipmentModalContent } from './components/NewEquipmentModalContent';
+// --- TIPAGEM DA API ---
 
-export default function AdminEquipamentosPage() {
-  const [baseUrl, setBaseUrl] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const router = useRouter(); 
-  const { token } = useAuth(); // <-- Pega o token para a API
+interface ApiChartData {
+  date: string;
+  finalizados: number;
+  pendentes: number;
+}
 
-  // --- ESTADOS DA API ---
-  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+// Interface para a Lista de Tarefas (Table)
+interface ApiOrderService {
+  id: number;
+  tipo: string;
+  status: string;
+  horaAbertura: string;
+  modeloCompressor: string;
+  name?: string;
+}
+
+interface ApiResponse {
+  tecnico: ApiChartData[];
+  orderServiço: ApiOrderService[];
+}
+
+export default function ManutentorHomePage() {
+  const { token } = useAuth();
+  const router = useRouter();
+
+  // --- ESTADOS ---
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [tarefas, setTarefas] = useState<ApiOrderService[]>([]);
+  const [kpis, setKpis] = useState({
+    pendentes: 0,
+    emAndamento: 0,
+    finalizadosSemana: 0,
+  });
+
   const [isLoading, setIsLoading] = useState(true);
-  const [refetchToggle, setRefetchToggle] = useState(false); // Gatilho
+  const [error, setError] = useState("");
 
-  type ModalType = 'qr' | 'edit' | 'history' | 'new' | null;
-  const [modalState, setModalState] = useState<{
-    type: ModalType;
-    equipment: Equipamento | null;
-  }>({ type: null, equipment: null });
-
-  // --- CARREGA DADOS DA API ---
+  // --- BUSCA DE DADOS ---
   useEffect(() => {
-    setBaseUrl(window.location.origin);
+    async function fetchData() {
+      if (!token) return;
 
-    if (!token) {
-      if(token === null) setIsLoading(false);
-      return;
-    }
-
-    const fetchAllData = async () => {
       setIsLoading(true);
+      setError("");
+
       try {
-        // Busca equipamentos e clientes em paralelo
-        const [equipResponse, clientesResponse] = await Promise.all([
-          fetch('http://localhost:3340/equipamento', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }),
-          fetch('http://localhost:3340/user/clientes', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-        ]);
+        const response = await fetch(
+          "http://localhost:3340/dashboard/tecnico",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-        if (!equipResponse.ok) throw new Error('Falha ao buscar equipamentos');
-        if (!clientesResponse.ok) throw new Error('Falha ao buscar clientes');
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status}`);
+        }
 
-        const equipData = await equipResponse.json();
-        const clientesData = await clientesResponse.json();
+        const data: ApiResponse = await response.json();
 
-        // 1. "Tradução" dos Clientes (para os modais)
-        const transformedClientes: Cliente[] = clientesData.map((user: any) => ({
-          id: String(user.user_id),
-          nomeFantasia: user.user_name,
-          razaoSocial: user.user_razaoSocial || 'N/A',
-          cnpj: user.user_cnpj || 'N/A',
-        }));
-        setClientes(transformedClientes);
+        // 1. Transformar dados para o Gráfico
+        const formattedChartData = data.tecnico.map((item) => {
+          const dateObj = new Date(item.date);
+          const userTimezoneOffset = dateObj.getTimezoneOffset() * 60000;
+          const adjustedDate = new Date(dateObj.getTime() + userTimezoneOffset);
 
-        // 2. "Tradução" dos Equipamentos (para os cards)
-        const transformedEquipamentos: Equipamento[] = equipData.map((apiEq: any) => {
-          const statusManutencao: 'Disponível' | 'Manutencao' = 
-            apiEq.status === 'disponivel' ? 'Disponível' : 'Manutencao';
-          
+          const dayName = new Intl.DateTimeFormat("pt-BR", {
+            weekday: "short",
+          }).format(adjustedDate);
+
           return {
-            id: String(apiEq.id),
-            clienteId: apiEq.user ? String(apiEq.user.id) : null,
-            statusManutencao: statusManutencao,
-            modeloCompressor: apiEq.modeloCompressor || 'N/A',
-            tipoGas: apiEq.tipoGas || 'N/A',
-            tipoOleo: apiEq.tipoOleo || 'N/A',
-            tensao: String(apiEq.tensao) + 'V',
-            aplicacao: apiEq.aplicacao || 'N/A',
-            
-            // Campos "Polyfill" (API não envia, mas o tipo/frontend precisa)
-            nome: apiEq.modeloCompressor || `Equipamento #${apiEq.id}`, // Usa o compressor como "nome"
-            tipo: apiEq.tipo || 'Climatização', // <-- TODO: API precisa enviar 'tipo'
-            tipoCondensador: apiEq.tipoCondensador || 'N/A',
-            tipoEvaporador: apiEq.tipoEvaporador || 'N/A',
-            valvulaExpansao: apiEq.valvulaExpansao || 'N/A',
+            name: dayName.charAt(0).toUpperCase() + dayName.slice(1),
+            abertas: item.pendentes,
+            concluidas: item.finalizados,
           };
         });
-        setEquipamentos(transformedEquipamentos);
 
-      } catch (error: any) {
-        toast.error(error.message || "Erro ao carregar dados.");
+        // 2. Calcular KPIs
+        const totalPendentes = data.tecnico.reduce(
+          (acc, curr) => acc + curr.pendentes,
+          0
+        );
+        const totalFinalizados = data.tecnico.reduce(
+          (acc, curr) => acc + curr.finalizados,
+          0
+        );
+        const totalEmAndamento = data.orderServiço.filter(
+          (os) => os.status === "Em andamento"
+        ).length;
+
+        // 3. Atualizar Estados
+        setChartData(formattedChartData);
+        setTarefas(data.orderServiço);
+
+        setKpis({
+          pendentes: totalPendentes,
+          emAndamento: totalEmAndamento,
+          finalizadosSemana: totalFinalizados,
+        });
+      } catch (err: any) {
+        console.error("Erro ao buscar dados:", err);
+        setError("Não foi possível carregar os dados do dashboard.");
       } finally {
         setIsLoading(false);
       }
-    };
+    }
 
-    fetchAllData();
-  }, [token, refetchToggle]); // Recarrega se o token ou o gatilho mudarem
+    fetchData();
+  }, [token]);
 
-  // --- FILTRO ATUALIZADO (useMemo) ---
-  const filteredEquipamentos = useMemo(() => {
-    return equipamentos.filter(eq => {
-      const status = typeof window !== 'undefined' ? 
-                       localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                       eq.statusManutencao;
-      
-      // Encontra o nome do cliente no estado 'clientes'
-      const clienteNome = clientes.find(c => c.id === eq.clienteId)?.nomeFantasia || '';
-      
-      const statusMatch = statusFilter === 'all' || status === statusFilter;
-      
-      // Pesquisa por ID, Tipo, Compressor ou Nome do Cliente
-      const searchMatch = searchTerm === '' ||
-        eq.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        eq.tipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (clienteNome && clienteNome.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-      return statusMatch && searchMatch;
-    });
-  }, [equipamentos, clientes, searchTerm, statusFilter]); // <-- Depende dos clientes e equipamentos
+  // --- HELPERS VISUAIS ---
 
-  const openModal = (type: ModalType, equipment: Equipamento) => {
-    setModalState({ type, equipment });
+  const getPrioridadeVariant = (
+    tipo: string
+  ): "destructive" | "secondary" | "outline" => {
+    if (tipo === "Corretivo") return "destructive";
+    return "outline";
   };
-  
-  // O modal agora dispara o refetch
-  const closeModalAndRefetch = () => {
-    setModalState({ type: null, equipment: null });
-    setRefetchToggle(prev => !prev); // Dispara o useEffect
+
+  const getPrioridadeLabel = (tipo: string) => {
+    return tipo === "Corretivo" ? "Alta" : "Normal";
   };
-  
-  const closeModal = () => {
-     setModalState({ type: null, equipment: null });
+
+  // --- RENDERIZAÇÃO ---
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Carregando dashboard...</span>
+      </div>
+    );
   }
 
-  // --- RENDERIZAÇÃO DE LOADING ---
-  if (isLoading) {
-     return (
-       <div className="flex justify-center items-center py-20">
-         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-         <p className="ml-3 text-muted-foreground">Carregando equipamentos...</p>
-       </div>
-     );
+  if (error) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center text-destructive">
+        <AlertTriangle className="mr-2 h-6 w-6" />
+        <span>{error}</span>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {/* 1. CABEÇALHO DA PÁGINA (com botão "Novo") */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Equipamentos (Admin)</h2>
-          <p className="text-muted-foreground">
-            Gerencie, edite e monitore todo o inventário de equipamentos.
-          </p>
-        </div>
-        
-        <Button onClick={() => setModalState({ type: 'new', equipment: null })}>
-          + Novo Equipamento
-        </Button>
+      <h2 className="text-3xl font-bold tracking-tight">
+        Visão Geral - Manutentor
+      </h2>
+
+      {/* SEÇÃO KPI */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Pendentes (Semana)
+            </CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">{kpis.pendentes}</div>
+            <p className="text-xs text-muted-foreground">Novas solicitações</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              OS Em Andamento
+            </CardTitle>
+            <Wrench className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">{kpis.emAndamento}</div>
+            <p className="text-xs text-muted-foreground">Na sua lista atual</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Finalizadas (Semana)
+            </CardTitle>
+            <CalendarCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">{kpis.finalizadosSemana}</div>
+            <p className="text-xs text-muted-foreground">
+              Concluídas com sucesso
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Equipamentos Offline
+            </CardTitle>
+            <Package className="h-4 w-4 text-gray-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">--</div>
+            <p className="text-xs text-muted-foreground">Dado não disponível</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* 2. BARRA DE FILTRO E PESQUISA */}
-      <Card>
-        <CardContent className="pt-6 flex flex-col md:flex-row items-center gap-4">
-          <div className="relative w-full md:flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input 
-              placeholder="Pesquisar por ID, tipo, compressor, cliente..." // <-- ATUALIZADO
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Filtrar por status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="Disponível">Disponível</SelectItem>
-              <SelectItem value="Manutencao">Em Manutenção</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-      
-      {/* 3. GRID DE EQUIPAMENTOS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEquipamentos.map((eq) => {
-          const status = typeof window !== 'undefined' ? 
-                           localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao : 
-                           eq.statusManutencao;
-          const cliente = clientes.find(c => c.id === eq.clienteId); // <-- Usa o estado 'clientes'
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* GRÁFICO */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Fluxo de Ordens de Serviço</CardTitle>
+            <CardDescription>
+              Pendentes vs. Finalizadas (Últimos 7 dias)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis
+                  dataKey="name"
+                  stroke="#888888"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888888"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  width={30}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "transparent" }}
+                  contentStyle={{
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+                <Legend iconType="circle" />
+                <Bar
+                  dataKey="abertas"
+                  name="Pendentes"
+                  fill="#ef4444"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  dataKey="concluidas"
+                  name="Finalizadas"
+                  fill="#22c55e"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-          return (
-            <Card key={eq.id} className="flex flex-col hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
-                <div className="flex-1">
-                  
-                  {/* --- ATUALIZADO: Título e Descrição --- */}
-                  <CardTitle className="truncate">Equipamento #{eq.id}</CardTitle>
-                  {/* <CardDescription>ID: {eq.id}</CardDescription> */}
-                  
-                  <CardDescription className="flex items-center gap-2 mt-2">
-                    {cliente ? (
-                      <>
-                        <Package className="h-4 w-4" /> {cliente.nomeFantasia}
-                      </>
-                    ) : (
-                      <span className="text-yellow-600">Sem cliente (Estoque)</span>
-                    )}
-                  </CardDescription>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {status === 'Disponível' ? (
-                    <Badge variant="outline" className="text-green-600 border-green-600">Disponível</Badge>
-                  ) : (
-                    <Badge variant="destructive">Em Manutenção</Badge>
-                  )}
-
-                  {/* Dropdown Menu (Admin/Manutentor) */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openModal('edit', eq)}>
-                        <Pencil className="mr-2 h-4 w-4" /> Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openModal('qr', eq)}>
-                        <QrCode className="mr-2 h-4 w-4" /> Ver QR Code
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => openModal('history', eq)}>
-                        <History className="mr-2 h-4 w-4" /> Ver Histórico
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="flex-grow grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={eq.modeloCompressor}>{eq.modeloCompressor}</span></div>
-                <div className="flex items-center gap-2"><Wind className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tipoGas}</span></div>
-                <div className="flex items-center gap-2"><Droplet className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tipoOleo}</span></div>
-                <div className="flex items-center gap-2"><Bolt className="h-4 w-4 text-muted-foreground" /><span className="truncate">{eq.tensao}</span></div>
-              </CardContent>
-              
-            </Card>
-          );
-        })}
-
-        {/* --- ATUALIZADO: Mensagem de "nenhum resultado" --- */}
-        {!isLoading && filteredEquipamentos.length === 0 && (
-          <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-12">
-            <Package className="h-10 w-10 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold">Nenhum equipamento encontrado</h3>
-            <p>Não há equipamentos cadastrados ou eles não correspondem ao filtro.</p>
-          </div>
-        )}
+        {/* TABELA DE TAREFAS */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Minhas Tarefas</CardTitle>
+            <CardDescription></CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Equipamento</TableHead>
+                  <TableHead>Prio.</TableHead>
+                  <TableHead>Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tarefas.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="text-center text-muted-foreground py-8"
+                    >
+                      Nenhuma tarefa encontrada.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  tarefas.map((os) => (
+                    <TableRow key={os.id}>
+                      <TableCell className="font-medium p-2">
+                        <div className="font-medium">{os.modeloCompressor}</div>
+                        <div className="text-xs text-muted-foreground">
+                          OS-{os.id}
+                        </div>
+                        <div className="text-xs text-blue-500 font-semibold">
+                          {os.status}
+                        </div>
+                      </TableCell>
+                      <TableCell className="p-2">
+                        <Badge variant={getPrioridadeVariant(os.tipo)}>
+                          {getPrioridadeLabel(os.tipo)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right p-2">
+                        {/* CORREÇÃO FINAL: 
+                            Uso direto do onClick com router.push.
+                            Removemos o 'Link' e o 'asChild' para evitar conflitos.
+                        */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/equipamento/?id=${os.id}`)
+                          }
+                        >
+                          Ver
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* RENDERIZAÇÃO DO DIALOG GLOBAL */}
-      <Dialog open={!!modalState.type} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-xl">
-          {modalState.type === 'qr' && modalState.equipment && (
-            <QrCodeModalContent 
-              equipmentName={modalState.equipment.tipo} // <-- (Nome para o arquivo)
-              equipmentId={modalState.equipment.id} // <-- PROP NOVA
-              onClose={closeModal} 
-            />
-          )}
-          {modalState.type === 'edit' && modalState.equipment && (
-            <EditEquipmentModalContent 
-              equipment={modalState.equipment}
-              clientes={clientes} // <-- Passa clientes da API
-              onClose={closeModalAndRefetch} // <-- Atualiza ao fechar
-            />
-          )}
-          {modalState.type === 'history' && modalState.equipment && (
-            <HistoryModalContent 
-              equipmentName={modalState.equipment.tipo} // <-- Usa o 'tipo'
-              equipmentId={modalState.equipment.id}
-              token={token || ''}
-            />
-          )}
-          {modalState.type === 'new' && (
-            <NewEquipmentModalContent 
-              clientes={clientes} // <-- Passa clientes da API
-              onClose={closeModalAndRefetch} // <-- Atualiza ao fechar
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

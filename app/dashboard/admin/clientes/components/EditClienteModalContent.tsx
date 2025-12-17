@@ -1,7 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from "react";
-import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useState, useEffect } from "react"; // <--- Adicionado useEffect
+import {
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +14,6 @@ import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/contexts/authContext";
 
-// Interface para o estado do formulário
 interface ClienteFormState {
   id: string;
   nome: string;
@@ -19,33 +23,53 @@ interface ClienteFormState {
 }
 
 interface EditClienteModalProps {
-  cliente: any; 
+  cliente: any;
   onClose: () => void;
 }
 
-export function EditClienteModalContent({ cliente, onClose }: EditClienteModalProps) {
+export function EditClienteModalContent({
+  cliente,
+  onClose,
+}: EditClienteModalProps) {
   const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   // Inicializa o estado
-  // Password inicia vazio. Telefone tenta pegar do objeto ou inicia vazio.
   const [formData, setFormData] = useState<ClienteFormState>({
     id: cliente.id,
-    nome: cliente.nomeFantasia || cliente.name || '',
-    email: cliente.email || '', 
-    telefone: cliente.telefone || '',
-    password: '', // Senha sempre vazia ao abrir edição
+    nome: cliente.nomeFantasia || cliente.name || "",
+    email: cliente.email || "",
+    telefone: cliente.telefone || "",
+    password: "",
   });
 
+  // --- CORREÇÃO AQUI ---
+  // Este useEffect garante que, se o objeto 'cliente' mudar (ex: abrir o modal),
+  // os campos do formulário são atualizados com os dados vindos do banco.
+  useEffect(() => {
+    if (cliente) {
+      // Dica de Debug: Olhe no console do navegador (F12) para ver
+      // se o backend está mandando 'telefone', 'phone', 'celular', etc.
+      console.log("Dados do cliente recebidos para edição:", cliente);
+
+      setFormData({
+        id: cliente.id,
+        nome: cliente.nomeFantasia || cliente.name || "",
+        email: cliente.email || "",
+        telefone: cliente.telefone || "", // Verifique se no banco não está salvo como 'phone' ou 'celular'
+        password: "", // Senha reseta sempre que muda o cliente
+      });
+    }
+  }, [cliente]);
+  // ---------------------
+
   const handleChange = (field: keyof ClienteFormState, value: string) => {
-    // Validação para aceitar apenas números no telefone
-    if (field === 'telefone') {
-      const onlyNumbers = value.replace(/\D/g, '');
-      setFormData(prev => ({ ...prev, [field]: onlyNumbers }));
+    if (field === "telefone") {
+      const onlyNumbers = value.replace(/\D/g, "");
+      setFormData((prev) => ({ ...prev, [field]: onlyNumbers }));
       return;
     }
-
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
@@ -57,37 +81,32 @@ export function EditClienteModalContent({ cliente, onClose }: EditClienteModalPr
     setIsLoading(true);
 
     try {
-      // Prepara o payload
-      // Usamos 'any' para construir o objeto dinamicamente
       const payload: any = {
         name: formData.nome,
         email: formData.email,
         telefone: formData.telefone,
       };
 
-      // Lógica importante: Só envia a senha se o campo não estiver vazio.
-      // Isso evita alterar a senha do usuário sem querer.
-      if (formData.password && formData.password.trim() !== '') {
+      if (formData.password && formData.password.trim() !== "") {
         payload.password = formData.password;
       }
 
       const response = await fetch(`http://localhost:3340/user/${cliente.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao atualizar cliente');
+        throw new Error(errorData.message || "Falha ao atualizar cliente");
       }
 
       toast.success("Dados atualizados com sucesso!");
       onClose();
-
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Erro ao salvar alterações.");
@@ -104,29 +123,28 @@ export function EditClienteModalContent({ cliente, onClose }: EditClienteModalPr
           Atualize os dados de cadastro e acesso do cliente.
         </DialogDescription>
       </DialogHeader>
-      
+
       <div className="grid grid-cols-1 gap-4 py-4">
-        
         {/* Campo Nome */}
         <div>
           <Label htmlFor="nome">Nome</Label>
-          <Input 
-            id="nome" 
-            value={formData.nome} 
-            onChange={(e) => handleChange('nome', e.target.value)} 
+          <Input
+            id="nome"
+            value={formData.nome}
+            onChange={(e) => handleChange("nome", e.target.value)}
             disabled={isLoading}
             placeholder="Nome do cliente"
           />
         </div>
-        
+
         {/* Campo Email */}
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input 
-            id="email" 
+          <Input
+            id="email"
             type="email"
-            value={formData.email} 
-            onChange={(e) => handleChange('email', e.target.value)} 
+            value={formData.email}
+            onChange={(e) => handleChange("email", e.target.value)}
             disabled={isLoading}
             placeholder="email@exemplo.com"
           />
@@ -135,10 +153,10 @@ export function EditClienteModalContent({ cliente, onClose }: EditClienteModalPr
         {/* Campo Telefone */}
         <div>
           <Label htmlFor="telefone">Telefone / Celular</Label>
-          <Input 
-            id="telefone" 
-            value={formData.telefone} 
-            onChange={(e) => handleChange('telefone', e.target.value)} 
+          <Input
+            id="telefone"
+            value={formData.telefone}
+            onChange={(e) => handleChange("telefone", e.target.value)}
             disabled={isLoading}
             placeholder="11999999999"
             maxLength={11}
@@ -149,11 +167,11 @@ export function EditClienteModalContent({ cliente, onClose }: EditClienteModalPr
         {/* Campo Senha */}
         <div>
           <Label htmlFor="password">Nova Senha</Label>
-          <Input 
-            id="password" 
+          <Input
+            id="password"
             type="password"
-            value={formData.password} 
-            onChange={(e) => handleChange('password', e.target.value)} 
+            value={formData.password}
+            onChange={(e) => handleChange("password", e.target.value)}
             disabled={isLoading}
             placeholder="Deixe em branco para manter a atual"
           />
@@ -161,9 +179,8 @@ export function EditClienteModalContent({ cliente, onClose }: EditClienteModalPr
             Preencha apenas se desejar alterar a senha de acesso.
           </p>
         </div>
-
       </div>
-      
+
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={isLoading}>
           Cancelar

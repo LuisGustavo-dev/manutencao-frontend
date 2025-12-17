@@ -149,7 +149,7 @@ function EquipamentoPage() {
           clienteId: apiData.clienteId || null,
           tipoCondensador: apiData.tipoCondensador || "N/A",
           tipoEvaporador: apiData.tipoEvaporador || "N/A",
-          valvulaExpansao: apiData.valvulaExpansao || "N/A",
+          tipoValvula: apiData.tipoValvula || "N/A",
         };
 
         const transformedHistory: ApiHistoricoItem[] = apiData.chamadosFechados

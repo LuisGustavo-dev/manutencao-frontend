@@ -1,11 +1,8 @@
-'use client';
+"use client";
 // --- Hooks do React ---
-import { useState, useEffect } from "react"; 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Card, 
-  CardContent, 
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -14,20 +11,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator 
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 // --- UI Extras ---
-import { Badge } from "@/components/ui/badge"; 
+import { Badge } from "@/components/ui/badge";
 // --- Ícones ---
-import { MoreHorizontal, PlusCircle, Package, Pencil, Loader2, Power } from "lucide-react";
+import {
+  MoreHorizontal,
+  PlusCircle,
+  Package,
+  Pencil,
+  Loader2,
+  Power,
+} from "lucide-react";
 // --- Tipos ---
-import type { Cliente as BaseCliente } from "@/lib/mock-data"; 
+import type { Cliente as BaseCliente } from "@/lib/mock-data";
 // --- Modais ---
 import { NewClienteModalContent } from "./components/NewClienteModalContent";
 import { EditClienteModalContent } from "./components/EditClienteModalContent";
@@ -38,11 +42,14 @@ import toast from "react-hot-toast";
 // --- TIPO: Estende o Cliente base com os dados da API ---
 type ClienteComContagem = BaseCliente & {
   quantidadeEquipamentos: string;
-  status: 'Ativo' | 'Inativo'; 
+  status: "Ativo" | "Inativo";
+  // Garantir que email e telefone existam no tipo
+  email?: string;
+  telefone?: string;
 };
 
 export default function ClientesPage() {
-  const { role, token } = useAuth(); 
+  const { role, token } = useAuth();
 
   // --- ESTADOS ---
   const [clientes, setClientes] = useState<ClienteComContagem[]>([]);
@@ -50,7 +57,7 @@ export default function ClientesPage() {
   const [refetchToggle, setRefetchToggle] = useState(false);
 
   // --- Estado do Modal ---
-  type ModalType = 'new' | 'edit' | null;
+  type ModalType = "new" | "edit" | null;
   const [modalState, setModalState] = useState<{
     type: ModalType;
     cliente: ClienteComContagem | null;
@@ -59,39 +66,34 @@ export default function ClientesPage() {
   const openModal = (type: ModalType, cliente: ClienteComContagem | null) => {
     setModalState({ type, cliente });
   };
-  
+
   const closeModalAndRefetch = () => {
     setModalState({ type: null, cliente: null });
-    setRefetchToggle(prev => !prev); 
+    setRefetchToggle((prev) => !prev);
   };
-  
-  const closeModal = () => {
-     setModalState({ type: null, cliente: null });
-  }
 
-  // --- FUNÇÃO DE ALTERAR STATUS (ATUALIZADA) ---
+  const closeModal = () => {
+    setModalState({ type: null, cliente: null });
+  };
+
+  // --- FUNÇÃO DE ALTERAR STATUS ---
   const handleToggleStatus = async (cliente: ClienteComContagem) => {
     if (!token) return;
 
-    const isAtivo = cliente.status === 'Ativo';
-    
-    // Se está Ativo, vamos chamar a rota de DESATIVAR.
-    // Se está Inativo, vamos chamar a rota de ATIVAR.
-    const actionRoute = isAtivo ? 'desativar' : 'ativar';
+    const isAtivo = cliente.status === "Ativo";
+    const actionRoute = isAtivo ? "desativar" : "ativar";
     const url = `http://localhost:3340/user/${actionRoute}/${cliente.id}`;
-    
+
     const toastId = toast.loading(isAtivo ? "Desativando..." : "Ativando...");
 
     try {
       const response = await fetch(url, {
-        method: 'PATCH', // Assumindo PATCH, mas pode ser PUT ou POST dependendo do seu backend
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        // Geralmente rotas de ação específicas não precisam de corpo (body),
-        // mas mantemos o objeto vazio caso o backend espere um JSON válido.
-        body: JSON.stringify({}) 
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -99,12 +101,11 @@ export default function ClientesPage() {
       }
 
       toast.success(
-        `Cliente ${isAtivo ? 'desativado' : 'ativado'} com sucesso!`, 
+        `Cliente ${isAtivo ? "desativado" : "ativado"} com sucesso!`,
         { id: toastId }
       );
-      
-      setRefetchToggle(prev => !prev);
 
+      setRefetchToggle((prev) => !prev);
     } catch (error) {
       console.error(error);
       toast.error(`Erro ao ${actionRoute} status.`, { id: toastId });
@@ -121,29 +122,37 @@ export default function ClientesPage() {
     const fetchClientes = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('http://localhost:3340/user/clientes', {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
+        const response = await fetch("http://localhost:3340/user/clientes", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!response.ok) {
-          throw new Error('Falha ao buscar clientes');
+          throw new Error("Falha ao buscar clientes");
         }
 
         const dataFromApi = await response.json();
 
         // --- MAPEAMENTO FINAL ---
-        const transformedData: ClienteComContagem[] = dataFromApi.map((apiUser: any) => ({
-          id: String(apiUser.user_id),
-          nomeFantasia: apiUser.user_name,
-          razaoSocial: apiUser.user_razaoSocial || 'Não informado',
-          cnpj: apiUser.user_cnpj || 'Não informado',
-          quantidadeEquipamentos: apiUser.quantidadeEquipamentos || '0', 
-          status: (apiUser.user_isActive === 1) ? 'Ativo' : 'Inativo'
-        }));
+        // AQUI ESTAVA O PROBLEMA: Precisamos mapear email e telefone da API para o objeto
+        const transformedData: ClienteComContagem[] = dataFromApi.map(
+          (apiUser: any) => ({
+            id: String(apiUser.user_id),
+            nomeFantasia: apiUser.user_name,
+            razaoSocial: apiUser.user_razaoSocial || "Não informado",
+            cnpj: apiUser.user_cnpj || "Não informado",
+
+            // Adicionando mapeamento de email e telefone
+            // Ajuste 'user_email' e 'user_telefone' conforme o retorno real do seu backend
+            email: apiUser.user_email || apiUser.email || "",
+            telefone: apiUser.user_telefone || apiUser.telefone || "",
+
+            quantidadeEquipamentos: apiUser.quantidadeEquipamentos || "0",
+            status: apiUser.user_isActive === 1 ? "Ativo" : "Inativo",
+          })
+        );
 
         setClientes(transformedData);
-
       } catch (error: any) {
         toast.error(error.message || "Erro ao carregar clientes.");
       } finally {
@@ -152,21 +161,20 @@ export default function ClientesPage() {
     };
 
     fetchClientes();
-  }, [token, refetchToggle]); 
+  }, [token, refetchToggle]);
 
   // --- RENDERIZAÇÃO ---
   if (isLoading) {
-     return (
-       <div className="flex justify-center items-center py-20">
-         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-         <p className="ml-3 text-muted-foreground">Carregando clientes...</p>
-       </div>
-     );
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-3 text-muted-foreground">Carregando clientes...</p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -175,8 +183,8 @@ export default function ClientesPage() {
             Gerencie as empresas e locais de manutenção.
           </p>
         </div>
-        {role === 'Admin' && (
-          <Button size="lg" onClick={() => openModal('new', null)}>
+        {role === "Admin" && (
+          <Button size="lg" onClick={() => openModal("new", null)}>
             <PlusCircle className="mr-2 h-5 w-5" />
             Novo Cliente
           </Button>
@@ -206,10 +214,14 @@ export default function ClientesPage() {
               )}
               {clientes.map((cliente) => (
                 <TableRow key={cliente.id}>
-                  <TableCell className="font-medium">{cliente.nomeFantasia}</TableCell>
+                  <TableCell className="font-medium">
+                    {cliente.nomeFantasia}
+                  </TableCell>
                   <TableCell>
                     <div>{cliente.razaoSocial}</div>
-                    <div className="text-xs text-muted-foreground">{cliente.cnpj}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {cliente.cnpj}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -217,10 +229,14 @@ export default function ClientesPage() {
                       {cliente.quantidadeEquipamentos}
                     </div>
                   </TableCell>
-                  
+
                   {/* Coluna Status com Badge */}
                   <TableCell>
-                    <Badge variant={cliente.status === 'Ativo' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={
+                        cliente.status === "Ativo" ? "default" : "secondary"
+                      }
+                    >
                       {cliente.status}
                     </Badge>
                   </TableCell>
@@ -228,11 +244,14 @@ export default function ClientesPage() {
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        
-                        <DropdownMenuItem onClick={() => openModal('edit', cliente)}>
+                        <DropdownMenuItem
+                          onClick={() => openModal("edit", cliente)}
+                        >
                           <Pencil className="mr-2 h-4 w-4" />
                           Editar Cliente
                         </DropdownMenuItem>
@@ -240,14 +259,17 @@ export default function ClientesPage() {
                         <DropdownMenuSeparator />
 
                         {/* --- BOTÃO ATIVAR / DESATIVAR --- */}
-                        <DropdownMenuItem 
-                            onClick={() => handleToggleStatus(cliente)}
-                            className={cliente.status === 'Ativo' ? "text-red-600 focus:text-red-600" : "text-green-600 focus:text-green-600"}
+                        <DropdownMenuItem
+                          onClick={() => handleToggleStatus(cliente)}
+                          className={
+                            cliente.status === "Ativo"
+                              ? "text-red-600 focus:text-red-600"
+                              : "text-green-600 focus:text-green-600"
+                          }
                         >
                           <Power className="mr-2 h-4 w-4" />
-                          {cliente.status === 'Ativo' ? 'Desativar' : 'Ativar'}
+                          {cliente.status === "Ativo" ? "Desativar" : "Ativar"}
                         </DropdownMenuItem>
-
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -259,13 +281,19 @@ export default function ClientesPage() {
       </Card>
 
       {/* Dialog Global */}
-      <Dialog open={!!modalState.type} onOpenChange={(open) => !open && closeModal()}>
+      <Dialog
+        open={!!modalState.type}
+        onOpenChange={(open) => !open && closeModal()}
+      >
         <DialogContent className="sm:max-w-md">
-          {modalState.type === 'new' && (
+          {modalState.type === "new" && (
             <NewClienteModalContent onClose={closeModalAndRefetch} />
           )}
-          {modalState.type === 'edit' && modalState.cliente && (
-            <EditClienteModalContent cliente={modalState.cliente} onClose={closeModalAndRefetch} />
+          {modalState.type === "edit" && modalState.cliente && (
+            <EditClienteModalContent
+              cliente={modalState.cliente}
+              onClose={closeModalAndRefetch}
+            />
           )}
         </DialogContent>
       </Dialog>
