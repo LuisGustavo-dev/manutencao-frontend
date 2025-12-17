@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 // Bibliotecas de Data e PDF
 import { 
   format, addMonths, subMonths, startOfMonth, endOfMonth, 
-  eachDayOfInterval, isWeekend, isSameDay 
+  eachDayOfInterval, isWeekend, isSameDay, differenceInMinutes, parseISO 
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
@@ -23,73 +23,160 @@ import { useAuth } from '@/app/contexts/authContext';
 // --- TIPOS ---
 type PointStatus = 'COMPLETE' | 'MISSING' | 'WEEKEND' | 'ABSENT' | 'FUTURE';
 
+interface ApiPointRecord {
+    id: number;
+    entrada: string;
+    almoco?: string;
+    retornoAlmoço?: string;
+    saida?: string;
+}
+
 interface PointEntry {
   date: Date;
   entry?: string;
   lunchOut?: string;
   lunchIn?: string;
   exit?: string;
-  totalHours: string; // "08:00"
+  totalHours: string; 
   status: PointStatus;
 }
 
+const API_URL = "http://localhost:3340";
+
 export default function HistoricoPontoPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth(); // Assumindo que você tem o token no contexto
   const [currentDate, setCurrentDate] = useState(new Date());
   const [historyData, setHistoryData] = useState<PointEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // --- 1. GERADOR DE DADOS MOCK (Simula API) ---
-  useEffect(() => {
-    const generateData = () => {
-      const start = startOfMonth(currentDate);
-      const end = endOfMonth(currentDate);
-      const days = eachDayOfInterval({ start, end });
-      const today = new Date();
+  // --- HELPER: Converter minutos em HH:mm ---
+  const minutesToHHmm = (minutes: number) => {
+    if (isNaN(minutes) || minutes < 0) return "00:00";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
 
-      const data: PointEntry[] = days.map(day => {
-        // Se for futuro
-        if (day > today) {
-          return { date: day, totalHours: '-', status: 'FUTURE' };
-        }
+  // --- 1. BUSCAR E PROCESSAR DADOS ---
+  const fetchAndProcessData = useCallback(async () => {
+    if (!token || !user?.id) return;
 
-        // Se for fim de semana
-        if (isWeekend(day)) {
-          return { date: day, totalHours: '-', status: 'WEEKEND' };
-        }
-
-        // Simula falta aleatória (5% de chance)
-        if (Math.random() > 0.95) {
-          return { date: day, totalHours: '00:00', status: 'ABSENT' };
-        }
-
-        // Simula esquecimento de bater ponto na saída (hoje ou passado)
-        const isIncomplete = Math.random() > 0.9;
+    setIsLoading(true);
+    try {
+        // Busca o histórico completo (ou filtrado, dependendo de como sua API evoluir)
+        const response = await fetch(`${API_URL}/colaborador/historico-ponto/`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         
-        return {
-          date: day,
-          entry: '08:00',
-          lunchOut: '12:00',
-          lunchIn: '13:00',
-          exit: isIncomplete ? undefined : '18:00', // Simula erro
-          totalHours: isIncomplete ? 'Em andamento' : '09:00',
-          status: isIncomplete ? 'MISSING' : 'COMPLETE'
-        };
-      });
+        let apiData: ApiPointRecord[] = [];
+        if (response.ok) {
+            apiData = await response.json();
+        }
 
-      setHistoryData(data.reverse()); // Mais recentes primeiro
-    };
+        // Gera todos os dias do mês selecionado visualmente
+        const start = startOfMonth(currentDate);
+        const end = endOfMonth(currentDate);
+        const daysInMonth = eachDayOfInterval({ start, end });
+        const today = new Date();
 
-    generateData();
-  }, [currentDate]);
+        const processedData: PointEntry[] = daysInMonth.map(day => {
+            // 1. Tenta encontrar um registro da API para este dia
+            // Nota: Se houver múltiplos registros no mesmo dia, pegamos o primeiro encontrado ou precisaríamos somar
+            // Com base no JSON, filtramos pelo dia da entrada
+            const record = apiData.find(item => isSameDay(parseISO(item.entrada), day));
+
+            // A. Cenário: Dia Futuro
+            if (day > today) {
+                return { date: day, totalHours: '-', status: 'FUTURE' };
+            }
+
+            // B. Cenário: Fim de Semana (e sem registro de trabalho extra)
+            if (isWeekend(day) && !record) {
+                return { date: day, totalHours: '-', status: 'WEEKEND' };
+            }
+
+            // C. Cenário: Sem registro no dia (Falta)
+            if (!record) {
+                // Se já passou o dia e não é fds, é falta
+                return { date: day, totalHours: '00:00', status: 'ABSENT' };
+            }
+
+            // D. Cenário: Tem registro (Calcula Horas)
+            const entrada = parseISO(record.entrada);
+            const saida = record.saida ? parseISO(record.saida) : null;
+            const almoco = record.almoco ? parseISO(record.almoco) : null;
+            const retorno = record.retornoAlmoço ? parseISO(record.retornoAlmoço) : null;
+
+            let minutesWorked = 0;
+            let status: PointStatus = 'COMPLETE';
+
+            if (saida) {
+                // Diferença total bruta (Entrada -> Saída)
+                const totalDiff = differenceInMinutes(saida, entrada);
+                
+                // Desconta almoço se houver
+                let lunchDiff = 0;
+                if (almoco && retorno) {
+                    lunchDiff = differenceInMinutes(retorno, almoco);
+                } else if (almoco && !retorno) {
+                    // Almoço em aberto?
+                    status = 'MISSING';
+                }
+
+                minutesWorked = totalDiff - lunchDiff;
+            } else {
+                status = 'MISSING'; // Não bateu saída ainda
+            }
+
+            return {
+                date: day,
+                entry: format(entrada, 'HH:mm'),
+                lunchOut: almoco ? format(almoco, 'HH:mm') : undefined,
+                lunchIn: retorno ? format(retorno, 'HH:mm') : undefined,
+                exit: saida ? format(saida, 'HH:mm') : undefined,
+                totalHours: status === 'MISSING' ? 'Em andamento' : minutesToHHmm(minutesWorked),
+                status: status
+            };
+        });
+
+        // Ordena: Dias mais recentes primeiro na lista
+        setHistoryData(processedData.reverse());
+
+    } catch (error) {
+        console.error("Erro ao buscar histórico", error);
+        toast.error("Erro ao carregar histórico.");
+    } finally {
+        setIsLoading(false);
+    }
+  }, [currentDate, token, user?.id]);
+
+  useEffect(() => {
+    fetchAndProcessData();
+  }, [fetchAndProcessData]);
 
   // --- 2. CÁLCULOS (KPIs) ---
   const stats = useMemo(() => {
-    const workedDays = historyData.filter(d => d.status === 'COMPLETE').length;
-    // Simulação simples de saldo (considerando meta de 8h/dia e trabalho de 9h/dia no mock)
-    const extraHours = workedDays * 1; // 1 hora extra por dia trabalhado no mock
+    // Filtra apenas dias completos para contar dias trabalhados
+    const workedDays = historyData.filter(d => d.status === 'COMPLETE' || d.status === 'MISSING').length;
+    
+    // Cálculo simples de saldo (Exemplo: soma horas reais trabalhadas vs meta mensal)
+    // Aqui faremos uma estimativa baseada nos dados carregados
+    let totalMinutesMonth = 0;
+    historyData.forEach(d => {
+        if (d.status === 'COMPLETE' && d.totalHours !== 'Em andamento') {
+            const [h, m] = d.totalHours.split(':').map(Number);
+            totalMinutesMonth += (h * 60) + m;
+        }
+    });
+
+    const hours = Math.floor(totalMinutesMonth / 60);
+    const mins = totalMinutesMonth % 60;
+    
     return {
       workedDays,
-      balance: `+ ${extraHours.toString().padStart(2, '0')}:00h`
+      totalHours: `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}h`
     };
   }, [historyData]);
 
@@ -185,14 +272,14 @@ export default function HistoricoPontoPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-100">
           <CardContent className="p-4 flex flex-col items-center justify-center py-6">
-            <p className="text-xs font-bold uppercase text-blue-600 mb-1">Saldo de Horas</p>
-            <p className="text-3xl font-bold text-blue-900">{stats.balance}</p>
+            <p className="text-xs font-bold uppercase text-blue-600 mb-1">Horas Trabalhadas</p>
+            <p className="text-3xl font-bold text-blue-900">{isLoading ? '...' : stats.totalHours}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col items-center justify-center py-6">
             <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Dias Trabalhados</p>
-            <p className="text-3xl font-bold">{stats.workedDays}</p>
+            <p className="text-3xl font-bold">{isLoading ? '...' : stats.workedDays}</p>
           </CardContent>
         </Card>
         <Card>
@@ -235,7 +322,11 @@ export default function HistoricoPontoPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {historyData.map((row, i) => (
+                {isLoading ? (
+                    <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">Carregando histórico...</TableCell>
+                    </TableRow>
+                ) : historyData.map((row, i) => (
                   <TableRow 
                     key={i} 
                     className={`
@@ -261,7 +352,7 @@ export default function HistoricoPontoPage() {
                       </TableCell>
                     ) : row.status === 'ABSENT' ? (
                       <TableCell colSpan={4} className="text-center font-bold text-red-500 text-xs">
-                        FALTA NÃO JUSTIFICADA
+                        FALTA / SEM REGISTRO
                       </TableCell>
                     ) : row.status === 'FUTURE' ? (
                       <TableCell colSpan={4} className="text-center text-xs text-muted-foreground">
@@ -282,7 +373,7 @@ export default function HistoricoPontoPage() {
                       {row.status === 'MISSING' ? (
                         <Badge variant="outline" className="border-yellow-500 text-yellow-600 bg-yellow-50">Incompleto</Badge>
                       ) : (
-                        <span className={`font-mono text-sm ${row.totalHours.startsWith('+') ? 'text-green-600 font-bold' : ''}`}>
+                        <span className={`font-mono text-sm ${row.status === 'COMPLETE' ? 'font-bold' : ''}`}>
                           {row.totalHours}
                         </span>
                       )}
