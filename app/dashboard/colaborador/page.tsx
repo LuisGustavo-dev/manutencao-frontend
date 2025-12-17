@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Clock, MapPin, Briefcase, CheckCircle2, 
-  Coffee, LogOut, CalendarDays, History, PlayCircle 
+  Coffee, LogOut, CalendarDays, History, Camera
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, differenceInMinutes } from 'date-fns';
@@ -63,7 +63,10 @@ export default function PontoColaboradorPage() {
   // Inputs do formulário
   const [clienteSelecionado, setClienteSelecionado] = useState('');
   const [atividadeInput, setAtividadeInput] = useState('');
+  
+  // Inputs de Finalização
   const [descricaoFim, setDescricaoFim] = useState('');
+  const [fotoConclusao, setFotoConclusao] = useState<File | null>(null);
 
   // --- MAPPER AUXILIAR (Transforma dados da API em itens visuais da Timeline) ---
   const mapApiToTimeline = useCallback((data: any): ItemTimeline[] => {
@@ -94,8 +97,8 @@ export default function PontoColaboradorPage() {
               hora: format(new Date(reg.inicio), 'HH:mm'),
               tipo: 'SERVICO',
               titulo: 'Início de Serviço',
-              descricao: reg.atividade, // A descrição inicial
-              status: 'running' // Status azul (cor primária)
+              descricao: reg.atividade,
+              status: 'running'
             });
         }
 
@@ -106,8 +109,8 @@ export default function PontoColaboradorPage() {
             hora: format(new Date(reg.finalizacao), 'HH:mm'),
             tipo: 'SERVICO',
             titulo: 'Serviço Finalizado',
-            descricao: reg.atividadeFinalizada, // O relatório final
-            status: 'done' // Status verde
+            descricao: reg.atividadeFinalizada,
+            status: 'done'
           });
         }
       });
@@ -118,8 +121,6 @@ export default function PontoColaboradorPage() {
       events.push({ id: `sai-${data.id}`, hora: format(new Date(data.saida), 'HH:mm'), tipo: 'PONTO', titulo: 'Saída do Trabalho', status: 'done' });
     }
 
-    // Ordena do mais recente para o mais antigo (baseado na hora string HH:mm pode falhar na virada do dia, ideal seria usar timestamp, mas para HH:mm simples ok)
-    // Melhoria: Ordenar por timestamps reais se possível, mas mantendo a lógica atual:
     return events.sort((a, b) => b.hora.localeCompare(a.hora));
   }, []);
 
@@ -239,11 +240,25 @@ export default function PontoColaboradorPage() {
 
   const handleIniciarServico = async () => {
     if (!clienteSelecionado || !atividadeInput) return toast.error("Preencha os campos.");
+    
     try {
+      // 1. Cria o payload JSON
+      const payload = {
+        empresaId: Number(clienteSelecionado),
+        atividade: atividadeInput
+      };
+
+      // 2. Coloca o JSON dentro do campo 'data' do FormData
+      const formData = new FormData();
+      formData.append('data', JSON.stringify(payload));
+
       const res = await fetch(`${API_URL}/colaborador/${pontoId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ empresaId: Number(clienteSelecionado), atividade: atividadeInput })
+        headers: { 
+          'Authorization': `Bearer ${token}`
+          // Sem Content-Type (Browser define multipart/form-data boundary)
+        },
+        body: formData
       });
       
       if (res.ok) {
@@ -258,16 +273,36 @@ export default function PontoColaboradorPage() {
 
   const handleFinalizarServico = async () => {
     if (!descricaoFim) return toast.error("Relatório obrigatório.");
+    
     try {
+      // 1. Cria o payload JSON
+      const payload = {
+        atividadeFinalizada: descricaoFim,
+        finalizacao: new Date()
+      };
+
+      // 2. Coloca o JSON dentro do campo 'data' do FormData
+      const formData = new FormData();
+      formData.append('data', JSON.stringify(payload));
+
+      // 3. Se houver imagem, anexa ao FormData
+      if (fotoConclusao) {
+        formData.append('file', fotoConclusao);
+      }
+
       const res = await fetch(`${API_URL}/colaborador/${pontoId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ atividadeFinalizada: descricaoFim, finalizacao: new Date() })
+        headers: { 
+          'Authorization': `Bearer ${token}`
+          // Sem Content-Type
+        },
+        body: formData
       });
       
       if (res.ok) {
         toast.success("Serviço finalizado!");
         setDescricaoFim('');
+        setFotoConclusao(null); // Limpa a foto
         setClienteSelecionado('');
         await carregarDadosPonto();
       }
@@ -284,6 +319,7 @@ export default function PontoColaboradorPage() {
     setClienteSelecionado('');
     setAtividadeInput('');
     setDescricaoFim('');
+    setFotoConclusao(null);
   };
 
   return (
@@ -364,9 +400,26 @@ export default function PontoColaboradorPage() {
                     <Badge className="bg-green-100 text-green-700 border-green-200">Em Execução</Badge>
                   </div>
                   <Separator />
-                  <div className="space-y-2">
-                    <Label>Relatório de Conclusão</Label>
-                    <Textarea placeholder="Descreva o que foi feito..." value={descricaoFim} onChange={e => setDescricaoFim(e.target.value)} className="min-h-[150px]" />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Relatório de Conclusão</Label>
+                        <Textarea 
+                            placeholder="Descreva o que foi feito..." 
+                            value={descricaoFim} 
+                            onChange={e => setDescricaoFim(e.target.value)} 
+                            className="min-h-[150px]" 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Camera className="w-4 h-4"/> Foto do Serviço (Opcional)</Label>
+                        <Input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={(e) => setFotoConclusao(e.target.files?.[0] || null)}
+                            className="cursor-pointer"
+                        />
+                        {fotoConclusao && <p className="text-xs text-green-600 font-medium">Imagem selecionada: {fotoConclusao.name}</p>}
+                    </div>
                   </div>
                   <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={handleFinalizarServico}>Finalizar e Salvar</Button>
                 </div>
