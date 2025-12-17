@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // 1. IMPORTAR ROUTER
 import {
   Card,
   CardContent,
@@ -51,17 +52,18 @@ interface ApiOrderService {
   status: string;
   horaAbertura: string;
   modeloCompressor: string;
-  name?: string; // Nome do cliente/solicitante
+  name?: string; 
+  equipamentoId: number; // 2. ADICIONADO CAMPOS PARA EVITAR ERRO DE TS
 }
 
 interface ApiResponse {
   tecnico: ApiChartData[];
   orderServiço: ApiOrderService[];
-  // Removido: recente
 }
 
 export default function ManutentorHomePage() {
   const { token } = useAuth(); 
+  const router = useRouter(); // 3. INICIALIZAR O ROUTER
   
   // --- ESTADOS ---
   const [chartData, setChartData] = useState<any[]>([]);
@@ -174,7 +176,7 @@ export default function ManutentorHomePage() {
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Visão Geral - Manutentor</h2>
       
-      {/* SEÇÃO KPI */}
+      {/* SEÇÃO KPI (Omitido para brevidade, mantém igual ao seu código original) */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -245,8 +247,7 @@ export default function ManutentorHomePage() {
           <CardHeader>
             <CardTitle>Minhas Tarefas</CardTitle>
             <CardDescription>
-                {/* Mostra "Atribuídas a..." se houver dados, senão genérico */}
-                 
+                OS atribuídas
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -279,7 +280,16 @@ export default function ManutentorHomePage() {
                         </Badge>
                         </TableCell>
                         <TableCell className="text-right p-2">
-                        <Button variant="outline" size="sm">Ver</Button>
+                        
+                        {/* 4. BOTÃO ATUALIZADO COM NAVEGAÇÃO */}
+                        <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => router.push(`/equipamento/?id=${os.equipamentoId}`)}
+                        >
+                            Ver
+                        </Button>
+                        
                         </TableCell>
                     </TableRow>
                     ))

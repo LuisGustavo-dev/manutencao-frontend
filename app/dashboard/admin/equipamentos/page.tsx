@@ -1,369 +1,476 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import type { Equipamento, Cliente } from "@/lib/mock-data"; 
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
-  CardHeader,
   CardDescription,
+  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  AlertTriangle,
-  Wrench,
-  CalendarCheck,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  Settings2,
+  Droplet,
+  Wind,
+  Bolt,
+  MoreVertical,
+  QrCode,
+  Pencil,
+  History,
   Package,
   Loader2,
-  // Link removido daqui para evitar confusão com ícones
+  Gauge,
+  Power, // Importado para ícone de Ativar
+  Ban,   // Importado para ícone de Desativar
 } from "lucide-react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from "recharts";
 import { useAuth } from "@/app/contexts/authContext";
+import toast from "react-hot-toast";
 
-// --- TIPAGEM DA API ---
+// Importa os componentes de modal do DIRETÓRIO LOCAL
+import { QrCodeModalContent } from "./components/QrCodeModalContent";
+import { EditEquipmentModalContent } from "./components/EditEquipmentModalContent";
+import { HistoryModalContent } from "./components/HistoryModalContent";
+import { NewEquipmentModalContent } from "./components/NewEquipmentModalContent";
 
-interface ApiChartData {
-  date: string;
-  finalizados: number;
-  pendentes: number;
-}
-
-// Interface para a Lista de Tarefas (Table)
-interface ApiOrderService {
-  id: number;
-  tipo: string;
-  status: string;
-  horaAbertura: string;
-  modeloCompressor: string;
-  name?: string;
-}
-
-interface ApiResponse {
-  tecnico: ApiChartData[];
-  orderServiço: ApiOrderService[];
-}
-
-export default function ManutentorHomePage() {
-  const { token } = useAuth();
+export default function AdminEquipamentosPage() {
+  const [baseUrl, setBaseUrl] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const router = useRouter();
+  const { token } = useAuth();
 
-  // --- ESTADOS ---
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [tarefas, setTarefas] = useState<ApiOrderService[]>([]);
-  const [kpis, setKpis] = useState({
-    pendentes: 0,
-    emAndamento: 0,
-    finalizadosSemana: 0,
-  });
-
+  // --- ESTADOS DA API ---
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [refetchToggle, setRefetchToggle] = useState(false);
 
-  // --- BUSCA DE DADOS ---
+  type ModalType = "qr" | "edit" | "history" | "new" | null;
+  const [modalState, setModalState] = useState<{
+    type: ModalType;
+    equipment: Equipamento | null;
+  }>({ type: null, equipment: null });
+
+  // --- CARREGA DADOS DA API ---
   useEffect(() => {
-    async function fetchData() {
-      if (!token) return;
+    setBaseUrl(window.location.origin);
 
+    if (!token) {
+      if (token === null) setIsLoading(false);
+      return;
+    }
+
+    const fetchAllData = async () => {
       setIsLoading(true);
-      setError("");
-
       try {
-        const response = await fetch(
-          "http://localhost:3340/dashboard/tecnico",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+        const [equipResponse, clientesResponse] = await Promise.all([
+          fetch("http://localhost:3340/equipamento", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch("http://localhost:3340/user/clientes", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        if (!equipResponse.ok) throw new Error("Falha ao buscar equipamentos");
+        if (!clientesResponse.ok) throw new Error("Falha ao buscar clientes");
+
+        const equipData = await equipResponse.json();
+        const clientesData = await clientesResponse.json();
+
+        // 1. Clientes
+        const transformedClientes: Cliente[] = clientesData.map(
+          (user: any) => ({
+            id: String(user.user_id),
+            nomeFantasia: user.user_name,
+            razaoSocial: user.user_razaoSocial || "N/A",
+            cnpj: user.user_cnpj || "N/A",
+            email: user.user_email || "",
+            telefone: user.user_telefone || "",
+          })
+        );
+        setClientes(transformedClientes);
+
+        // 2. Equipamentos
+        const transformedEquipamentos: Equipamento[] = equipData.map(
+          (apiEq: any) => {
+            const statusManutencao: "Disponível" | "Manutencao" =
+              apiEq.status === "disponivel" ? "Disponível" : "Manutencao";
+
+            let tensaoFormatada = "N/A";
+            if (apiEq.tensao) {
+              const tensaoString = String(apiEq.tensao);
+              tensaoFormatada = tensaoString.match(/v/i)
+                ? tensaoString
+                : `${tensaoString} V`;
+            }
+
+            return {
+              id: String(apiEq.id),
+              clienteId: apiEq.user ? String(apiEq.user.id) : null,
+              statusManutencao: statusManutencao,
+              
+              // Mapeia o isAtivo
+              isAtivo: apiEq.isAtivo, 
+
+              modeloCompressor: apiEq.modeloCompressor || "N/A",
+              tipoGas: apiEq.tipoGas || "N/A",
+              tipoOleo: apiEq.tipoOleo || "N/A",
+              tensao: tensaoFormatada,
+              aplicacao: apiEq.aplicacao || "N/A",
+              nome: apiEq.modeloCompressor || `Equipamento #${apiEq.id}`,
+              tipo: apiEq.tipo || "Climatização",
+              tipoCondensador: apiEq.tipoCondensador || "N/A",
+              tipoEvaporador: apiEq.tipoEvaporador || "N/A",
+              tipoValvula: apiEq.tipoValvula || "N/A",
+            };
           }
         );
-
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status}`);
-        }
-
-        const data: ApiResponse = await response.json();
-
-        // 1. Transformar dados para o Gráfico
-        const formattedChartData = data.tecnico.map((item) => {
-          const dateObj = new Date(item.date);
-          const userTimezoneOffset = dateObj.getTimezoneOffset() * 60000;
-          const adjustedDate = new Date(dateObj.getTime() + userTimezoneOffset);
-
-          const dayName = new Intl.DateTimeFormat("pt-BR", {
-            weekday: "short",
-          }).format(adjustedDate);
-
-          return {
-            name: dayName.charAt(0).toUpperCase() + dayName.slice(1),
-            abertas: item.pendentes,
-            concluidas: item.finalizados,
-          };
-        });
-
-        // 2. Calcular KPIs
-        const totalPendentes = data.tecnico.reduce(
-          (acc, curr) => acc + curr.pendentes,
-          0
-        );
-        const totalFinalizados = data.tecnico.reduce(
-          (acc, curr) => acc + curr.finalizados,
-          0
-        );
-        const totalEmAndamento = data.orderServiço.filter(
-          (os) => os.status === "Em andamento"
-        ).length;
-
-        // 3. Atualizar Estados
-        setChartData(formattedChartData);
-        setTarefas(data.orderServiço);
-
-        setKpis({
-          pendentes: totalPendentes,
-          emAndamento: totalEmAndamento,
-          finalizadosSemana: totalFinalizados,
-        });
-      } catch (err: any) {
-        console.error("Erro ao buscar dados:", err);
-        setError("Não foi possível carregar os dados do dashboard.");
+        setEquipamentos(transformedEquipamentos);
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao carregar dados.");
       } finally {
         setIsLoading(false);
       }
+    };
+
+    fetchAllData();
+  }, [token, refetchToggle]);
+
+  // --- FUNÇÃO PARA ATIVAR/DESATIVAR ---
+  const handleToggleStatus = async (id: string, isAtivo: boolean) => {
+    // Se está ativo, vamos desativar. Se não, vamos ativar.
+    const action = isAtivo ? "desativar" : "ativar";
+    
+    try {
+        // NOTA: Verifique se seu backend espera PATCH ou POST.
+        // Geralmente rotas de ação usam POST ou PATCH.
+        const response = await fetch(`http://localhost:3340/equipamento/${id}/${action}`, {
+            method: "PATCH", 
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erro ao tentar ${action} o equipamento.`);
+        }
+
+        toast.success(`Equipamento ${isAtivo ? "desativado" : "ativado"} com sucesso!`);
+        
+        // Atualiza a lista para refletir a mudança visualmente
+        setRefetchToggle((prev) => !prev);
+    } catch (error) {
+        toast.error("Erro ao alterar status do equipamento.");
+        console.error(error);
     }
-
-    fetchData();
-  }, [token]);
-
-  // --- HELPERS VISUAIS ---
-
-  const getPrioridadeVariant = (
-    tipo: string
-  ): "destructive" | "secondary" | "outline" => {
-    if (tipo === "Corretivo") return "destructive";
-    return "outline";
   };
 
-  const getPrioridadeLabel = (tipo: string) => {
-    return tipo === "Corretivo" ? "Alta" : "Normal";
+  // --- FILTRO ---
+  const filteredEquipamentos = useMemo(() => {
+    return equipamentos.filter((eq) => {
+      const status =
+        typeof window !== "undefined"
+          ? localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao
+          : eq.statusManutencao;
+
+      const clienteNome =
+        clientes.find((c) => c.id === eq.clienteId)?.nomeFantasia || "";
+
+      const statusMatch = statusFilter === "all" || status === statusFilter;
+
+      const searchMatch =
+        searchTerm === "" ||
+        eq.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        eq.tipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        eq.modeloCompressor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        eq.aplicacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (clienteNome &&
+          clienteNome.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      return statusMatch && searchMatch;
+    });
+  }, [equipamentos, clientes, searchTerm, statusFilter]);
+
+  const openModal = (type: ModalType, equipment: Equipamento) => {
+    setModalState({ type, equipment });
   };
 
-  // --- RENDERIZAÇÃO ---
+  const closeModalAndRefetch = () => {
+    setModalState({ type: null, equipment: null });
+    setRefetchToggle((prev) => !prev);
+  };
+
+  const closeModal = () => {
+    setModalState({ type: null, equipment: null });
+  };
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Carregando dashboard...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-64 w-full items-center justify-center text-destructive">
-        <AlertTriangle className="mr-2 h-6 w-6" />
-        <span>{error}</span>
+        <p className="ml-3 text-muted-foreground">Carregando equipamentos...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight">
-        Visão Geral - Manutentor
-      </h2>
+      {/* 1. CABEÇALHO DA PÁGINA */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Equipamentos (Admin)
+          </h2>
+          <p className="text-muted-foreground">
+            Gerencie, edite e monitore todo o inventário de equipamentos.
+          </p>
+        </div>
 
-      {/* SEÇÃO KPI */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Pendentes (Semana)
-            </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">{kpis.pendentes}</div>
-            <p className="text-xs text-muted-foreground">Novas solicitações</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              OS Em Andamento
-            </CardTitle>
-            <Wrench className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">{kpis.emAndamento}</div>
-            <p className="text-xs text-muted-foreground">Na sua lista atual</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Finalizadas (Semana)
-            </CardTitle>
-            <CalendarCheck className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">{kpis.finalizadosSemana}</div>
-            <p className="text-xs text-muted-foreground">
-              Concluídas com sucesso
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Equipamentos Offline
-            </CardTitle>
-            <Package className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">Dado não disponível</p>
-          </CardContent>
-        </Card>
+        <Button onClick={() => setModalState({ type: "new", equipment: null })}>
+          + Novo Equipamento
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* GRÁFICO */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Fluxo de Ordens de Serviço</CardTitle>
-            <CardDescription>
-              Pendentes vs. Finalizadas (Últimos 7 dias)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis
-                  dataKey="name"
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  width={30}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "transparent" }}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.9)",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-                <Legend iconType="circle" />
-                <Bar
-                  dataKey="abertas"
-                  name="Pendentes"
-                  fill="#ef4444"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="concluidas"
-                  name="Finalizadas"
-                  fill="#22c55e"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* 2. BARRA DE FILTRO */}
+      <Card>
+        <CardContent className="pt-6 flex flex-col md:flex-row items-center gap-4">
+          <div className="relative w-full md:flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar por ID, aplicação, compressor, cliente..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-[200px]">
+              <SelectValue placeholder="Filtrar por status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="Disponível">Disponível</SelectItem>
+              <SelectItem value="Manutencao">Em Manutenção</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
-        {/* TABELA DE TAREFAS */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Minhas Tarefas</CardTitle>
-            <CardDescription></CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Equipamento</TableHead>
-                  <TableHead>Prio.</TableHead>
-                  <TableHead>Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tarefas.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="text-center text-muted-foreground py-8"
-                    >
-                      Nenhuma tarefa encontrada.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  tarefas.map((os) => (
-                    <TableRow key={os.id}>
-                      <TableCell className="font-medium p-2">
-                        <div className="font-medium">{os.modeloCompressor}</div>
-                        <div className="text-xs text-muted-foreground">
-                          OS-{os.id}
-                        </div>
-                        <div className="text-xs text-blue-500 font-semibold">
-                          {os.status}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-2">
-                        <Badge variant={getPrioridadeVariant(os.tipo)}>
-                          {getPrioridadeLabel(os.tipo)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right p-2">
-                        {/* CORREÇÃO FINAL: 
-                            Uso direto do onClick com router.push.
-                            Removemos o 'Link' e o 'asChild' para evitar conflitos.
-                        */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            router.push(`/equipamento/?id=${os.id}`)
-                          }
+      {/* 3. GRID DE EQUIPAMENTOS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredEquipamentos.map((eq) => {
+          // @ts-ignore 
+          const isAtivo = eq.isAtivo; 
+
+          const status =
+            typeof window !== "undefined"
+              ? localStorage.getItem(`status_${eq.id}`) || eq.statusManutencao
+              : eq.statusManutencao;
+          const cliente = clientes.find((c) => c.id === eq.clienteId);
+
+          return (
+            <Card
+              key={eq.id}
+              className="flex flex-col hover:shadow-lg transition-shadow"
+            >
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="flex-1">
+                  
+                  <CardTitle className="truncate" title={eq.aplicacao}>
+                    {eq.aplicacao && eq.aplicacao !== "N/A" 
+                        ? eq.aplicacao 
+                        : `Equipamento #${eq.id}`
+                    }
+                  </CardTitle>
+                  
+                  <CardDescription className="flex items-center gap-2 mt-2">
+                    {cliente ? (
+                      <>
+                        <Package className="h-4 w-4" /> {cliente.nomeFantasia}
+                      </>
+                    ) : (
+                      <span className="text-yellow-600">
+                        Sem cliente (Estoque)
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+
+                {/* --- ÁREA DOS BADGES E MENU --- */}
+                <div className="flex gap-2 items-start">
+                  
+                  {/* Container vertical para os Badges */}
+                  <div className="flex flex-col items-end gap-1.5">
+                    
+                    {/* 1. Status Principal (EM CIMA) */}
+                    {status === "Disponível" ? (
+                        <Badge
+                        variant="outline"
+                        className="text-green-600 border-green-600"
                         >
-                          Ver
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                        Disponível
+                        </Badge>
+                    ) : (
+                        <Badge variant="destructive">Em Manutenção</Badge>
+                    )}
+
+                    {/* 2. Status Ativo/Inativo (EM BAIXO) */}
+                    {isAtivo ? (
+                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200 text-xs">
+                        Ativo
+                        </Badge>
+                    ) : (
+                        <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
+                        Inativo
+                        </Badge>
+                    )}
+                  </div>
+
+                   <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      
+                      {/* OPÇÃO DE EDITAR */}
+                      <DropdownMenuItem onClick={() => openModal("edit", eq)}>
+                        <Pencil className="mr-2 h-4 w-4" /> Editar
+                      </DropdownMenuItem>
+                      
+                      {/* --- NOVA OPÇÃO DE ATIVAR/DESATIVAR --- */}
+                      <DropdownMenuItem 
+                        onClick={() => handleToggleStatus(eq.id, Boolean(isAtivo))}
+                        className={isAtivo ? "text-red-600 focus:text-red-600 focus:bg-red-50" : "text-green-600 focus:text-green-600 focus:bg-green-50"}
+                      >
+                         {isAtivo ? (
+                            <>
+                                <Ban className="mr-2 h-4 w-4" /> 
+                                Desativar
+                            </>
+                         ) : (
+                            <>
+                                <Power className="mr-2 h-4 w-4" /> 
+                                Ativar
+                            </>
+                         )}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => openModal("qr", eq)}>
+                        <QrCode className="mr-2 h-4 w-4" /> Ver QR Code
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => openModal("history", eq)}
+                      >
+                        <History className="mr-2 h-4 w-4" /> Ver Histórico
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex-grow grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center gap-2" title="Compressor">
+                  <Settings2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate" title={eq.modeloCompressor}>
+                    {eq.modeloCompressor}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2" title="Gás">
+                  <Wind className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">{eq.tipoGas}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Óleo">
+                  <Droplet className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">{eq.tipoOleo}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Tensão">
+                  <Bolt className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">{eq.tensao}</span>
+                </div>
+
+                <div className="flex items-center gap-2" title="Válvula de Expansão">
+                  <Gauge className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">
+                    {eq.tipoValvula} 
+                  </span>
+                </div>
+                
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {!isLoading && filteredEquipamentos.length === 0 && (
+          <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-12">
+            <Package className="h-10 w-10 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold">
+              Nenhum equipamento encontrado
+            </h3>
+            <p>
+              Não há equipamentos cadastrados ou eles não correspondem ao
+              filtro.
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* DIALOGS (Mantidos iguais) */}
+      <Dialog
+        open={!!modalState.type}
+        onOpenChange={(open) => !open && closeModal()}
+      >
+        <DialogContent className="sm:max-w-xl">
+          {modalState.type === "qr" && modalState.equipment && (
+            <QrCodeModalContent
+              equipmentName={modalState.equipment.aplicacao !== "N/A" ? modalState.equipment.aplicacao : modalState.equipment.tipo}
+              equipmentId={modalState.equipment.id}
+              onClose={closeModal}
+            />
+          )}
+          {modalState.type === "edit" && modalState.equipment && (
+            <EditEquipmentModalContent
+              equipment={modalState.equipment}
+              clientes={clientes}
+              onClose={closeModalAndRefetch}
+            />
+          )}
+          {modalState.type === "history" && modalState.equipment && (
+            <HistoryModalContent
+              equipmentName={modalState.equipment.aplicacao !== "N/A" ? modalState.equipment.aplicacao : modalState.equipment.tipo}
+              equipmentId={modalState.equipment.id}
+              token={token || ""}
+            />
+          )}
+          {modalState.type === "new" && (
+            <NewEquipmentModalContent
+              clientes={clientes}
+              onClose={closeModalAndRefetch}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
