@@ -64,16 +64,17 @@ import autoTable from "jspdf-autotable";
 import { CollaboratorHistoryModal } from "./components/CollaboratorHistoryModal";
 import { useAuth } from "@/app/contexts/authContext";
 
-// --- INTERFACES DA API ---
+// --- INTERFACES DA API ATUALIZADAS ---
 interface RegistroAtividade {
   id: number;
   atividade: string;
-  empresa: number; // ID da empresa
-  inicio: string; // ISO Date
+  empresa: string; // ATUALIZADO: No JSON retorna string ("HALIPAR CS")
+  inicio: string;
 }
 
 interface Collaborator {
-  id: number;
+  id: number; // ID do registro do dia
+  userId: number; // NOVO: ID do usuário fixo
   name: string;
   email: string;
   entrada: string | null;
@@ -100,7 +101,6 @@ export default function AdminPontoPage() {
   const itemsPerPage = 8;
 
   // Modal State
-  // Adaptado para aceitar a estrutura do user (id number e name)
   const [historyUser, setHistoryUser] = useState<{
     id: string | number;
     nome: string;
@@ -113,15 +113,10 @@ export default function AdminPontoPage() {
   const fetchCollaborators = async () => {
     setLoading(true);
     try {
-      // 1. Formata a data selecionada para o padrão internacional YYYY-MM-DD
-      // Se não houver data selecionada, usa a data de hoje.
       const dataFormatada = date
         ? format(date, "yyyy-MM-dd")
         : format(new Date(), "yyyy-MM-dd");
 
-      // 2. Adiciona a data como parâmetro na URL (?date=...)
-      // Certifique-se que seu backend espera 'date', 'data' ou 'day'.
-      // Estou usando 'date' como padrão comum.
       const url = `http://localhost:3340/colaborador/?date=${dataFormatada}`;
 
       const response = await fetch(url, {
@@ -146,13 +141,9 @@ export default function AdminPontoPage() {
 
   useEffect(() => {
     fetchCollaborators();
-    // O useEffect depende da data se o backend suportar filtro.
-    // Se não, filtramos no front ou apenas recarregamos.
   }, [date]);
 
   // --- LÓGICA DE STATUS E FILTROS ---
-
-  // Função auxiliar para determinar status baseado nos campos da API
   const getStatus = (colab: Collaborator) => {
     if (colab.saida) return "SAIU";
     if (colab.almoco && !colab.retornoAlmoco) return "ALMOCO";
@@ -161,18 +152,15 @@ export default function AdminPontoPage() {
     return "AUSENTE";
   };
 
-  // Aplicação dos Filtros (Nome/Email e Status)
   const listaFiltrada = useMemo(() => {
     return collaborators.filter((colab) => {
       const statusAtual = getStatus(colab);
       const termo = searchTerm.toLowerCase();
 
-      // Filtro de Texto
       const matchNomeEmail =
         (colab.name || "").toLowerCase().includes(termo) ||
         (colab.email || "").toLowerCase().includes(termo);
 
-      // Filtro de Status
       const matchStatus =
         statusFilter === "todos" || statusAtual === statusFilter;
 
@@ -180,7 +168,6 @@ export default function AdminPontoPage() {
     });
   }, [collaborators, searchTerm, statusFilter]);
 
-  // Paginação
   const totalPages = Math.ceil(listaFiltrada.length / itemsPerPage);
   const paginatedData = listaFiltrada.slice(
     (currentPage - 1) * itemsPerPage,
@@ -193,10 +180,9 @@ export default function AdminPontoPage() {
     setDate(new Date());
     setCurrentPage(1);
     toast.success("Filtros redefinidos");
-    fetchCollaborators(); // Recarrega dados
+    fetchCollaborators();
   };
 
-  // Helper para formatar hora ISO para HH:mm
   const formatTime = (isoString: string | null) => {
     if (!isoString) return null;
     try {
@@ -210,7 +196,6 @@ export default function AdminPontoPage() {
   const handleExportPagePDF = () => {
     const doc = new jsPDF();
 
-    // Cabeçalho
     doc.setFontSize(16);
     doc.text("Relatório Diário de Ponto", 14, 15);
     doc.setFontSize(10);
@@ -225,7 +210,6 @@ export default function AdminPontoPage() {
       27
     );
 
-    // Dados
     const tableRows = listaFiltrada.map((colab) => {
       const statusAtual = getStatus(colab);
       const chegada = formatTime(colab.entrada) || "-";
@@ -233,7 +217,6 @@ export default function AdminPontoPage() {
       const voltaAlmoco = formatTime(colab.retornoAlmoco) || "-";
       const saida = formatTime(colab.saida) || "-";
 
-      // Traduzindo status para o PDF
       const mapStatus: Record<string, string> = {
         EM_SERVICO: "Externo",
         ALMOCO: "Almoço",
@@ -277,7 +260,7 @@ export default function AdminPontoPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* --- HEADER SIMPLIFICADO --- */}
+      {/* --- HEADER --- */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">
@@ -301,7 +284,7 @@ export default function AdminPontoPage() {
       {/* --- BARRA DE FILTROS --- */}
       <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-end justify-between">
         <div className="flex flex-col md:flex-row gap-4 w-full">
-          {/* 1. Busca por Nome/Email */}
+          {/* Busca por Nome/Email */}
           <div className="flex-1 min-w-[200px]">
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
               Buscar Colaborador
@@ -320,7 +303,7 @@ export default function AdminPontoPage() {
             </div>
           </div>
 
-          {/* 2. Seletor de Status */}
+          {/* Seletor de Status */}
           <div className="w-full md:w-[200px]">
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
               Status
@@ -345,7 +328,7 @@ export default function AdminPontoPage() {
             </Select>
           </div>
 
-          {/* 3. DatePicker */}
+          {/* DatePicker */}
           <div className="w-full md:w-[240px]">
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
               Data de Referência
@@ -518,7 +501,8 @@ export default function AdminPontoPage() {
                             <DropdownMenuItem
                               onClick={() =>
                                 setHistoryUser({
-                                  id: colab.id,
+                                  // AQUI: Usando userId para o histórico
+                                  id: colab.userId,
                                   nome: colab.name,
                                   email: colab.email,
                                 })
@@ -573,7 +557,8 @@ export default function AdminPontoPage() {
                           <DropdownMenuItem
                             onClick={() =>
                               setHistoryUser({
-                                id: colab.id,
+                                // AQUI: Usando userId para o histórico
+                                id: colab.userId,
                                 nome: colab.name,
                                 email: colab.email,
                               })
@@ -641,7 +626,7 @@ export default function AdminPontoPage() {
                                     </Badge>
                                   </div>
                                   <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                    <MapPin className="w-3 h-3" /> Empresa ID:{" "}
+                                    <MapPin className="w-3 h-3" /> Empresa:{" "}
                                     {reg.empresa}
                                   </div>
                                 </div>

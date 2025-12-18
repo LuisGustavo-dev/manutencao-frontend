@@ -1,132 +1,499 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CalendarDays, Plus, User, MapPin } from 'lucide-react';
-import { mockUsuarios, mockClientes } from '@/lib/mock-data'; // Reutilizando mocks
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  CalendarDays,
+  Plus,
+  User,
+  MapPin,
+  Loader2,
+  RefreshCw,
+  Clock,
+  Briefcase,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { useAuth } from "@/app/contexts/authContext";
+import { format, parseISO, isValid } from "date-fns";
+
+// --- INTERFACES ---
+interface Visita {
+  id: number;
+  atividade: string;
+  inicio: string | null;
+  urlArquivo: string;
+  atividadeFinalizada: string;
+  finalizacao: string | null;
+  dataMarcada: string;
+  empresa: string;
+  user: string;
+  email: string;
+}
+
+// Interfaces auxiliares para os selects
+interface TecnicoOption {
+  id: number;
+  nome: string;
+}
+
+interface ClienteOption {
+  id: number;
+  nomeFantasia: string;
+}
 
 export default function AdminAgendaPage() {
-  const [visitas, setVisitas] = useState([
-    { id: 1, tecnico: 'Luis Gustavo', cliente: 'Padaria Pão Quente', data: 'Hoje', hora: '14:00', status: 'PENDENTE' },
-    { id: 2, tecnico: 'Ana Silva', cliente: 'Mercado Central', data: 'Amanhã', hora: '09:00', status: 'AGENDADO' },
-  ]);
+  const { token } = useAuth();
 
+  // Estados da Lista Principal
+  const [visitas, setVisitas] = useState<Visita[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Estados do Modal e Formulário
   const [open, setOpen] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [tecnicosList, setTecnicosList] = useState<TecnicoOption[]>([]);
+  const [clientesList, setClientesList] = useState<ClienteOption[]>([]);
 
-  const handleAgendar = (e: React.FormEvent) => {
+  // Campos do Formulário
+  const [selectedTecnico, setSelectedTecnico] = useState("");
+  const [selectedCliente, setSelectedCliente] = useState("");
+  const [formData, setFormData] = useState({
+    data: "",
+    hora: "",
+    atividade: "",
+  });
+
+  // --- 1. BUSCAR VISITAS (LISTAGEM) ---
+  const fetchVisitas = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        "http://localhost:3340/colaborador/visita-agendada/",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Falha ao buscar agenda.");
+
+      const data = await response.json();
+      const dadosArray = Array.isArray(data) ? data : [data];
+      setVisitas(dadosArray);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao carregar a agenda.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchVisitas();
+    }
+  }, [token]);
+
+  // --- 2. BUSCAR OPÇÕES DO SELECT (AO ABRIR MODAL) ---
+  const fetchOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      // Buscar Técnicos, Colaboradores e Clientes em paralelo
+      const [resTecnicos, resColaboradores, resClientes] = await Promise.all([
+        fetch("http://localhost:3340/user/tecnicos", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("http://localhost:3340/user/colaboradores", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("http://localhost:3340/user/clientes", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      // --- PROCESSAMENTO DE TÉCNICOS ---
+      const dataTecnicos = resTecnicos.ok ? await resTecnicos.json() : [];
+      const dataColaboradores = resColaboradores.ok
+        ? await resColaboradores.json()
+        : [];
+
+      const todosTecnicos = [
+        ...(Array.isArray(dataTecnicos) ? dataTecnicos : []),
+        ...(Array.isArray(dataColaboradores) ? dataColaboradores : []),
+      ];
+
+      // Remove duplicatas baseadas no ID para técnicos
+      const tecnicosUnicos = Array.from(
+        new Map(todosTecnicos.map((item) => [item.id, item])).values()
+      );
+
+      const tecnicosFormatados = tecnicosUnicos.map((t: any) => ({
+        id: t.id,
+        nome: t.nome || t.name || t.user || "Sem Nome",
+      }));
+
+      // --- PROCESSAMENTO DE CLIENTES ---
+      const dataClientes = resClientes.ok ? await resClientes.json() : [];
+      const clientesArray = Array.isArray(dataClientes)
+        ? dataClientes
+        : [dataClientes];
+
+      // 1. Remove duplicatas usando 'user_id' como chave
+      const clientesUnicos = Array.from(
+        new Map(clientesArray.map((item: any) => [item.user_id, item])).values()
+      );
+
+      // 2. Mapeia usando os campos corretos da sua API
+      const clientesFormatados = clientesUnicos.map((c: any) => ({
+        id: c.user_id, // <--- CORREÇÃO: user_id em vez de id
+        nomeFantasia: c.user_name, // <--- CORREÇÃO: user_name é o campo que vem no JSON
+      }));
+
+      setTecnicosList(tecnicosFormatados);
+      setClientesList(clientesFormatados);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao carregar listas de seleção.");
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  // Carrega opções apenas quando abre o modal
+  useEffect(() => {
+    if (open && token) {
+      fetchOptions();
+    }
+  }, [open, token]);
+
+  // --- 3. ENVIAR AGENDAMENTO (POST) ---
+  const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Visita agendada com sucesso!");
-    setOpen(false);
-    // Aqui adicionaria ao estado 'visitas'
+
+    if (
+      !selectedTecnico ||
+      !selectedCliente ||
+      !formData.data ||
+      !formData.hora ||
+      !formData.atividade
+    ) {
+      toast.error("Preencha todos os campos.");
+      return;
+    }
+
+    try {
+      // Formatar Data para ISO String
+      const dataHoraString = `${formData.data}T${formData.hora}:00`;
+      const dataObj = new Date(dataHoraString);
+      const dataMarcadaISO = dataObj.toISOString();
+
+      const url = `http://localhost:3340/colaborador/visita-agendada/colaborador/${selectedTecnico}/empresa/${selectedCliente}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          atividade: formData.atividade,
+          dataMarcada: dataMarcadaISO,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao criar agendamento.");
+      }
+
+      toast.success("Visita agendada com sucesso!");
+      setOpen(false);
+
+      // Limpar formulário
+      setFormData({ data: "", hora: "", atividade: "" });
+      setSelectedTecnico("");
+      setSelectedCliente("");
+
+      // Atualizar lista
+      fetchVisitas();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao agendar visita.");
+    }
+  };
+
+  // --- HELPERS DE RENDERIZAÇÃO ---
+  const getStatus = (v: Visita) => {
+    if (v.finalizacao)
+      return { label: "CONCLUÍDO", class: "bg-green-100 text-green-700" };
+    if (v.inicio)
+      return { label: "EM ANDAMENTO", class: "bg-blue-100 text-blue-700" };
+    return { label: "AGENDADO", class: "bg-yellow-100 text-yellow-700" };
+  };
+
+  const formatDataHora = (isoString: string) => {
+    try {
+      const date = parseISO(isoString);
+      if (!isValid(date)) return { data: "-", hora: "-" };
+      return {
+        data: format(date, "dd/MM/yyyy"),
+        hora: format(date, "HH:mm"),
+      };
+    } catch {
+      return { data: "-", hora: "-" };
+    }
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda de Visitas</h1>
-          <p className="text-muted-foreground">Distribua as ordens de serviço e visitas técnicas.</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Agenda de Visitas
+          </h1>
+          <p className="text-muted-foreground">
+            Distribua as ordens de serviço e visitas técnicas.
+          </p>
         </div>
-        
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> Nova Visita</Button>
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" /> Nova Visita
+            </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Agendar Nova Visita</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Agendar Nova Visita</DialogTitle>
+            </DialogHeader>
             <form onSubmit={handleAgendar} className="space-y-4 py-4">
+              {/* Select Técnico */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Técnico/Colaborador</label>
-                <Select>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <label className="text-sm font-medium">
+                  Técnico/Colaborador
+                </label>
+                <Select
+                  value={selectedTecnico}
+                  onValueChange={setSelectedTecnico}
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        loadingOptions ? "Carregando..." : "Selecione o técnico"
+                      }
+                    />
+                  </SelectTrigger>
                   <SelectContent>
-                    {mockUsuarios.filter(u => u.role !== 'Cliente').map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                    {tecnicosList.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.nome}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Select Cliente */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Cliente</label>
-                <Select>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <Select
+                  value={selectedCliente}
+                  onValueChange={setSelectedCliente}
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger className="w-full">
+                    <span className="truncate">
+                      <SelectValue
+                        placeholder={
+                          loadingOptions
+                            ? "Carregando..."
+                            : "Selecione o cliente"
+                        }
+                      />
+                    </span>
+                  </SelectTrigger>
                   <SelectContent>
-                    {mockClientes.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.nomeFantasia}</SelectItem>
+                    {clientesList.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nomeFantasia}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Data e Hora */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Data</label>
-                  <Input type="date" />
+                  <Input
+                    type="date"
+                    value={formData.data}
+                    onChange={(e) =>
+                      setFormData({ ...formData, data: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Hora</label>
-                  <Input type="time" />
+                  <Input
+                    type="time"
+                    value={formData.hora}
+                    onChange={(e) =>
+                      setFormData({ ...formData, hora: e.target.value })
+                    }
+                  />
                 </div>
               </div>
+
+              {/* Descrição */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Serviço / Descrição</label>
-                <Input placeholder="Ex: Manutenção Preventiva" />
+                <label className="text-sm font-medium">
+                  Serviço / Descrição
+                </label>
+                <Input
+                  placeholder="Ex: Manutenção Preventiva"
+                  value={formData.atividade}
+                  onChange={(e) =>
+                    setFormData({ ...formData, atividade: e.target.value })
+                  }
+                />
               </div>
-              <Button type="submit" className="w-full mt-4">Confirmar Agendamento</Button>
+
+              <Button
+                type="submit"
+                className="w-full mt-4"
+                disabled={loadingOptions}
+              >
+                {loadingOptions ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Confirmar Agendamento
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-lg">Próximas Visitas</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Próximas Visitas</CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchVisitas}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data/Hora</TableHead>
-                <TableHead>Técnico</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visitas.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-bold">{v.data}</span>
-                      <span className="text-xs text-muted-foreground">{v.hora}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-muted-foreground" /> {v.tecnico}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" /> {v.cliente}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${v.status === 'PENDENTE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {v.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Editar</Button>
-                  </TableCell>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : visitas.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+              Nenhuma visita agendada encontrada.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>Técnico</TableHead>
+                  <TableHead>Cliente / Atividade</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {visitas.map((v) => {
+                  const { data, hora } = formatDataHora(v.dataMarcada);
+                  const statusInfo = getStatus(v);
+
+                  return (
+                    <TableRow key={v.id}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-bold flex items-center gap-1 text-sm">
+                            <CalendarDays className="w-3 h-3 text-muted-foreground" />
+                            {data}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            {hora}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2 font-medium text-sm">
+                            <User className="w-3 h-3 text-muted-foreground" />
+                            {v.user}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground pl-5">
+                            {v.email}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 font-medium text-sm">
+                            <MapPin className="w-3 h-3 text-muted-foreground" />
+                            {v.empresa}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Briefcase className="w-3 h-3" />
+                            {v.atividade}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${statusInfo.class}`}
+                        >
+                          {statusInfo.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">
+                          Editar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
