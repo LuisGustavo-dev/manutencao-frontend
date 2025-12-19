@@ -35,6 +35,7 @@ export default function LoginPage() {
       if (role === 'Admin') router.push('/dashboard/admin');
       else if (role === 'Manutentor') router.push('/dashboard/manutentor');
       else if (role === 'Cliente') router.push('/dashboard/cliente');
+      else if (role === 'Colaborador') router.push('/dashboard/colaborador');
     }
   }, [token, role, isAuthLoading, router]); // <-- Depende do carregamento do auth
 

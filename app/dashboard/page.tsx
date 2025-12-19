@@ -16,7 +16,9 @@ export default function DashboardRedirectPage() {
       router.push('/dashboard/manutentor');
     } else if (role === 'Cliente') {
       router.push('/dashboard/cliente');
-    } else {
+    } else if (role === 'Colaborador') {
+      router.push('/dashboard/colaborador');
+    } else{
       router.push('/login');
     }
   }, [role, token, router]);
