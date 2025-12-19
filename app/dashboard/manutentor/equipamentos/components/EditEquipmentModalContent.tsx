@@ -122,7 +122,7 @@ export function EditEquipmentModalContent({ equipment, clientes, onClose }: Edit
         </div>
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor="valvula">Válvula de Expansão</Label>
-          <Input id="valvula" value={formData.valvulaExpansao} onChange={(e) => handleChange('valvulaExpansao', e.target.value)} />
+          <Input id="valvula" value={formData.tipoValvula} onChange={(e) => handleChange('tipoValvula', e.target.value)} />
         </div>
 
       </div>

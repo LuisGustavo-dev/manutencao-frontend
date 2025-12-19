@@ -18,13 +18,11 @@ import {
   MapPin,
   ArrowRight,
   CheckCircle2,
-  User,
-  Phone,
   FileText,
   AlertCircle,
   Loader2,
-  Clock,
   AlertTriangle,
+  Clock, // Ícone novo para "Em andamento"
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/contexts/authContext";
@@ -37,16 +35,12 @@ import {
   isPast,
 } from "date-fns";
 
-// Interface atualizada conforme seu JSON de resposta
 interface VisitaAPI {
   id: number;
   atividade: string;
-  inicio: string | null;
-  urlArquivo: string;
-  atividadeFinalizada: string;
-  finalizacao: string | null;
-  dataMarcada: string; // "2025-12-18T17:30:00.000Z"
-  empresa: string; // "SALGADOS NEVES"
+  dataMarcada: string;
+  status: string; // "Pendente" | "Iniciado"
+  empresa: string;
 }
 
 export default function AgendaPage() {
@@ -55,6 +49,10 @@ export default function AgendaPage() {
 
   const [visitas, setVisitas] = useState<VisitaAPI[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // State para controlar qual botão está carregando
+  const [startingId, setStartingId] = useState<number | null>(null);
+
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -91,35 +89,46 @@ export default function AgendaPage() {
     fetchAgenda();
   }, [token]);
 
-  // --- LÓGICA DE STATUS (CALCULADA) ---
+  // --- LÓGICA DE STATUS ---
   const getStatusInfo = (visita: VisitaAPI) => {
     const date = parseISO(visita.dataMarcada);
 
-    // Se data inválida
     if (!isValid(date))
       return {
         label: "-",
         hora: "-",
         color: "gray",
         statusText: "Indefinido",
+        isUrgent: false,
       };
 
     const hora = format(date, "HH:mm");
     const diaMes = format(date, "dd/MM");
 
-    // 1. Verifica se está ATRASADO (Data passada E não iniciou)
-    // Usamos isPast para ver se o momento agendado já passou da hora atual
-    if (isPast(date) && !visita.inicio) {
+    // 1. PRIORIDADE: Se já foi INICIADO
+    // Ao definir isUrgent: false, o botão de iniciar some
+    if (visita.status === "Iniciado") {
+      return {
+        label: "ANDAMENTO",
+        hora: hora,
+        color: "blue", // Cor azul para indicar progresso
+        statusText: "Atendimento em andamento",
+        isUrgent: false, // <--- Isso remove o botão de Iniciar
+      };
+    }
+
+    // 2. Atrasado (Data passou E status é Pendente)
+    if (isPast(date) && visita.status === "Pendente") {
       return {
         label: "ATRASADO",
         hora: hora,
-        color: "red", // Define cor vermelha para atrasos
+        color: "red",
         statusText: `Era para: ${diaMes} às ${hora}`,
         isUrgent: true,
       };
     }
 
-    // 2. Verifica se é HOJE
+    // 3. Hoje (Pendente)
     if (isToday(date)) {
       return {
         label: "HOJE",
@@ -130,18 +139,18 @@ export default function AgendaPage() {
       };
     }
 
-    // 3. Verifica se é AMANHÃ
+    // 4. Amanhã
     if (isTomorrow(date)) {
       return {
         label: "AMANHÃ",
         hora: hora,
-        color: "blue",
+        color: "blue", // Azul claro (visual padrão do card)
         statusText: "Visita agendada para amanhã",
         isUrgent: false,
       };
     }
 
-    // 4. Data Futura Padrão
+    // 5. Futuro
     return {
       label: diaMes,
       hora: hora,
@@ -151,7 +160,6 @@ export default function AgendaPage() {
     };
   };
 
-  // --- ESTILOS DINÂMICOS BASEADOS NO RETORNO DA LÓGICA ---
   const getCardStyles = (color: string) => {
     switch (color) {
       case "red":
@@ -159,7 +167,8 @@ export default function AgendaPage() {
       case "green":
         return "border-l-green-500 bg-green-50/10";
       case "blue":
-        return "border-l-blue-400 bg-blue-50/10";
+        // Diferencia levemente o azul de "Andamento" vs "Amanhã" se desejar, ou mantém padrão
+        return "border-l-blue-500 bg-blue-50/20";
       default:
         return "border-l-gray-300";
     }
@@ -178,25 +187,52 @@ export default function AgendaPage() {
     }
   };
 
-  // --- AÇÃO: VER DETALHES ---
   const handleOpenDetails = (visita: VisitaAPI) => {
     const info = getStatusInfo(visita);
-
     const eventDetails = {
       ...visita,
       infoDisplay: info,
-      // Mapeando Empresa para o campo de endereço visualmente
       localDisplay: visita.empresa,
     };
-
     setSelectedEvent(eventDetails);
     setIsDetailsOpen(true);
   };
 
   // --- AÇÃO: INICIAR SERVIÇO ---
-  const handleStartService = (visita: VisitaAPI) => {
-    toast.success(`Iniciando atendimento em ${visita.empresa}`);
-    router.push("/dashboard/colaborador");
+  const handleStartService = async (visita: VisitaAPI) => {
+    if (!token) {
+      toast.error("Erro de autenticação.");
+      return;
+    }
+
+    setStartingId(visita.id);
+
+    try {
+      const response = await fetch(
+        `http://localhost:3340/colaborador/visita-agendada/colaborador/${visita.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Falha ao iniciar visita.");
+      }
+
+      toast.success(`Iniciando atendimento em ${visita.empresa}`);
+
+      setIsDetailsOpen(false);
+      router.push("/dashboard/colaborador");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao iniciar a visita. Tente novamente.");
+    } finally {
+      setStartingId(null);
+    }
   };
 
   if (loading) {
@@ -215,7 +251,6 @@ export default function AgendaPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <CalendarDays className="w-6 h-6 text-primary" /> Minha Agenda
         </h1>
-        {/* Contador de atrasados/hoje */}
         <div className="flex gap-2">
           <Badge
             variant="outline"
@@ -224,7 +259,8 @@ export default function AgendaPage() {
             {
               visitas.filter((v) => {
                 const d = parseISO(v.dataMarcada);
-                return isPast(d) && !v.inicio;
+                // Conta apenas pendentes e passadas
+                return isPast(d) && v.status === "Pendente";
               }).length
             }{" "}
             Atrasadas
@@ -243,6 +279,7 @@ export default function AgendaPage() {
             const info = getStatusInfo(item);
             const cardStyle = getCardStyles(info.color);
             const dateBoxStyle = getDateBoxStyles(info.color);
+            const isItemLoading = startingId === item.id;
 
             return (
               <Card
@@ -262,23 +299,21 @@ export default function AgendaPage() {
                       {info.color === "red" && (
                         <AlertTriangle className="w-4 h-4 mt-1" />
                       )}
+                      {info.label === "ANDAMENTO" && (
+                        <Clock className="w-4 h-4 mt-1 animate-pulse" />
+                      )}
                     </div>
 
-                    {/* Informações Principais */}
                     <div className="flex-1">
                       <h3 className="font-bold text-lg leading-none mb-1">
                         {item.empresa}
                       </h3>
-
-                      {/* Onde era o endereço, agora mostramos a Empresa novamente ou um texto fixo 'Local do Cliente' */}
                       <div className="flex items-center gap-1 text-muted-foreground text-sm mb-2">
                         <MapPin className="w-3 h-3 shrink-0" />
                         <span className="truncate max-w-[200px] md:max-w-md">
-                          {item.empresa}{" "}
-                          {/* Solicitado: mostrar nome da empresa no endereço */}
+                          {item.empresa}
                         </span>
                       </div>
-
                       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                         <Badge
                           variant="secondary"
@@ -286,15 +321,27 @@ export default function AgendaPage() {
                         >
                           {item.atividade}
                         </Badge>
+                        <Badge
+                          variant={
+                            item.status === "Iniciado" ? "default" : "outline"
+                          }
+                          className="text-xs"
+                        >
+                          {item.status}
+                        </Badge>
                       </div>
                     </div>
                   </div>
 
                   {/* Botões de Ação */}
                   <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-                    {/* Botão de Iniciar aparece para Hoje ou Atrasados */}
+                    {/*
+                      O botão de iniciar só renderiza se info.isUrgent for true.
+                      Como definimos isUrgent: false para status 'Iniciado', o botão some.
+                    */}
                     {info.isUrgent ? (
                       <Button
+                        disabled={isItemLoading}
                         className={`w-full md:w-auto gap-2 text-white shadow-sm ${
                           info.color === "red"
                             ? "bg-red-600 hover:bg-red-700"
@@ -302,7 +349,12 @@ export default function AgendaPage() {
                         }`}
                         onClick={() => handleStartService(item)}
                       >
-                        <CheckCircle2 className="w-4 h-4" /> Iniciar
+                        {isItemLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        {isItemLoading ? "Iniciando..." : "Iniciar"}
                       </Button>
                     ) : null}
 
@@ -310,6 +362,7 @@ export default function AgendaPage() {
                       variant="secondary"
                       className="w-full md:w-auto gap-2"
                       onClick={() => handleOpenDetails(item)}
+                      disabled={isItemLoading}
                     >
                       Ver Detalhes <ArrowRight className="w-4 h-4" />
                     </Button>
@@ -333,6 +386,8 @@ export default function AgendaPage() {
                     className={
                       selectedEvent.infoDisplay.color === "red"
                         ? "border-red-500 text-red-500"
+                        : selectedEvent.infoDisplay.color === "blue"
+                        ? "border-blue-500 text-blue-500"
                         : ""
                     }
                   >
@@ -344,13 +399,11 @@ export default function AgendaPage() {
                 </DialogTitle>
                 <DialogDescription className="flex items-start gap-2 text-left mt-1">
                   <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                  {selectedEvent.localDisplay}{" "}
-                  {/* Nome da empresa repetido aqui como local */}
+                  {selectedEvent.localDisplay}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2 text-sm">
-                {/* Descrição do Serviço */}
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold uppercase flex items-center gap-1 mb-2">
                     <FileText className="w-3 h-3" /> Atividade Prevista
@@ -362,7 +415,6 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
-                {/* Detalhes de Horário */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-muted/30 rounded border">
                     <span className="text-xs text-muted-foreground font-bold">
@@ -400,19 +452,32 @@ export default function AgendaPage() {
                 <Button
                   variant="outline"
                   onClick={() => setIsDetailsOpen(false)}
+                  disabled={startingId !== null}
                 >
                   Fechar
                 </Button>
-                <Button
-                  className={
-                    selectedEvent.infoDisplay.color === "red"
-                      ? "bg-red-600 hover:bg-red-700 text-white"
-                      : "bg-green-600 hover:bg-green-700 text-white"
-                  }
-                  onClick={() => handleStartService(selectedEvent)}
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Iniciar Agora
-                </Button>
+
+                {/* Botão no Modal também obedece à regra isUrgent */}
+                {selectedEvent.infoDisplay.isUrgent && (
+                  <Button
+                    disabled={startingId !== null}
+                    className={
+                      selectedEvent.infoDisplay.color === "red"
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }
+                    onClick={() => handleStartService(selectedEvent)}
+                  >
+                    {startingId === selectedEvent.id ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    {startingId === selectedEvent.id
+                      ? "Iniciando..."
+                      : "Iniciar Agora"}
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
