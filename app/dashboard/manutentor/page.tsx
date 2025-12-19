@@ -1,305 +1,720 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation"; // 1. IMPORTAR ROUTER
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardDescription,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  AlertTriangle,
-  Wrench,
-  CalendarCheck,
-  Package,
-  Loader2
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Clock,
+  MapPin,
+  Briefcase,
+  CheckCircle2,
+  Coffee,
+  LogOut,
+  CalendarDays,
+  History,
+  Camera,
 } from "lucide-react";
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  Legend 
-} from 'recharts';
+import toast from "react-hot-toast";
+import { format, differenceInMinutes } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/app/contexts/authContext";
 
-// --- TIPAGEM DA API ---
+type StatusPonto = "OFF" | "DISPONIVEL" | "EM_SERVICO" | "ALMOCO" | "ENCERRADO";
 
-interface ApiChartData {
-  date: string;
-  finalizados: number;
-  pendentes: number;
+interface Cliente {
+  user_id: number;
+  user_name: string;
 }
 
-// Interface para a Lista de Tarefas (Table)
-interface ApiOrderService {
-  id: number;
-  tipo: string;
-  status: string;
-  horaAbertura: string;
-  modeloCompressor: string;
-  name?: string; 
-  equipamentoId: number; // 2. ADICIONADO CAMPOS PARA EVITAR ERRO DE TS
+interface ServicoAtivo {
+  id: string | number;
+  clienteId: string;
+  clienteNome: string;
+  atividade: string;
+  inicio: Date;
 }
 
-interface ApiResponse {
-  tecnico: ApiChartData[];
-  orderServiço: ApiOrderService[];
+interface ItemTimeline {
+  id: string | number;
+  hora: string;
+  tipo: "PONTO" | "SERVICO";
+  titulo: string;
+  descricao?: string;
+  status?: "check" | "running" | "done" | "warning";
 }
 
-export default function ManutentorHomePage() {
-  const { token } = useAuth(); 
-  const router = useRouter(); // 3. INICIALIZAR O ROUTER
-  
+const API_URL = "http://localhost:3340";
+
+export default function PontoColaboradorPage() {
+  const { token, user } = useAuth();
+
   // --- ESTADOS ---
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [tarefas, setTarefas] = useState<ApiOrderService[]>([]);
-  const [kpis, setKpis] = useState({
-    pendentes: 0,
-    emAndamento: 0,
-    finalizadosSemana: 0
-  });
+  const [status, setStatus] = useState<StatusPonto>("OFF");
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [pontoId, setPontoId] = useState<string | null>(null);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [servicoAtivo, setServicoAtivo] = useState<ServicoAtivo | null>(null);
+  const [timeline, setTimeline] = useState<ItemTimeline[]>([]);
+  const [localizacao, setLocalizacao] = useState<string>(
+    "Av. Presidente Vargas, 1000 - Indaiatuba, SP"
+  );
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [horaEntrada, setHoraEntrada] = useState<Date | null>(null);
+  const [servicosConcluidos, setServicosConcluidos] = useState(0);
 
-  // --- BUSCA DE DADOS ---
-  useEffect(() => {
-    async function fetchData() {
-      if (!token) return;
+  // Inputs do formulário
+  const [clienteSelecionado, setClienteSelecionado] = useState("");
+  const [atividadeInput, setAtividadeInput] = useState("");
 
-      setIsLoading(true);
-      setError("");
+  // Inputs de Finalização
+  const [descricaoFim, setDescricaoFim] = useState("");
+  const [fotoConclusao, setFotoConclusao] = useState<File | null>(null);
 
-      try {
-        const response = await fetch('http://localhost:3340/dashboard/tecnico', { 
-          method: 'GET',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
-          },
-        });
+  // --- MAPPER AUXILIAR (Transforma dados da API em itens visuais da Timeline) ---
+  const mapApiToTimeline = useCallback((data: any): ItemTimeline[] => {
+    const events: ItemTimeline[] = [];
+    if (!data) return [];
 
-        if (!response.ok) {
-            throw new Error(`Erro na requisição: ${response.status}`);
-        }
-
-        const data: ApiResponse = await response.json();
-
-        // 1. Transformar dados para o Gráfico
-        const formattedChartData = data.tecnico.map((item) => {
-            const dateObj = new Date(item.date);
-            const userTimezoneOffset = dateObj.getTimezoneOffset() * 60000;
-            const adjustedDate = new Date(dateObj.getTime() + userTimezoneOffset);
-            
-            const dayName = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(adjustedDate);
-            
-            return {
-                name: dayName.charAt(0).toUpperCase() + dayName.slice(1),
-                abertas: item.pendentes,
-                concluidas: item.finalizados,
-            };
-        });
-
-        // 2. Calcular KPIs
-        const totalPendentes = data.tecnico.reduce((acc, curr) => acc + curr.pendentes, 0);
-        const totalFinalizados = data.tecnico.reduce((acc, curr) => acc + curr.finalizados, 0);
-        const totalEmAndamento = data.orderServiço.filter(os => os.status === "Em andamento").length;
-
-        // 3. Atualizar Estados
-        setChartData(formattedChartData);
-        setTarefas(data.orderServiço);
-        
-        setKpis({
-            pendentes: totalPendentes,
-            emAndamento: totalEmAndamento,
-            finalizadosSemana: totalFinalizados
-        });
-
-      } catch (err: any) {
-        console.error("Erro ao buscar dados:", err);
-        setError("Não foi possível carregar os dados do dashboard.");
-      } finally {
-        setIsLoading(false);
-      }
+    // 1. Ponto de Entrada
+    if (data.entrada) {
+      events.push({
+        id: `ent-${data.id}`,
+        hora: format(new Date(data.entrada), "HH:mm"),
+        tipo: "PONTO",
+        titulo: "Entrada",
+        status: "check",
+      });
     }
 
-    fetchData();
+    // 2. Almoço
+    if (data.almoco) {
+      events.push({
+        id: `alm-${data.id}`,
+        hora: format(new Date(data.almoco), "HH:mm"),
+        tipo: "PONTO",
+        titulo: "Saída para Almoço",
+        status: "warning",
+      });
+    }
+    if (data.retornoAlmoço) {
+      events.push({
+        id: `ret-${data.id}`,
+        hora: format(new Date(data.retornoAlmoço), "HH:mm"),
+        tipo: "PONTO",
+        titulo: "Volta do Almoço",
+        status: "check",
+      });
+    }
+
+    // 3. Serviços (Início e Fim)
+    if (
+      data.registroDoColaborador &&
+      Array.isArray(data.registroDoColaborador)
+    ) {
+      data.registroDoColaborador.forEach((reg: any) => {
+        // ADICIONADO: Evento de INÍCIO do serviço
+        if (reg.inicio) {
+          events.push({
+            id: `ini-${reg.id}`,
+            hora: format(new Date(reg.inicio), "HH:mm"),
+            tipo: "SERVICO",
+            titulo: "Início de Serviço",
+            descricao: reg.atividade,
+            status: "running",
+          });
+        }
+
+        // Evento de FIM do serviço
+        if (reg.finalizacao) {
+          events.push({
+            id: `fin-${reg.id}`,
+            hora: format(new Date(reg.finalizacao), "HH:mm"),
+            tipo: "SERVICO",
+            titulo: "Serviço Finalizado",
+            descricao: reg.atividadeFinalizada,
+            status: "done",
+          });
+        }
+      });
+    }
+
+    // 4. Saída
+    if (data.saida) {
+      events.push({
+        id: `sai-${data.id}`,
+        hora: format(new Date(data.saida), "HH:mm"),
+        tipo: "PONTO",
+        titulo: "Saída do Trabalho",
+        status: "done",
+      });
+    }
+
+    return events.sort((a, b) => b.hora.localeCompare(a.hora));
+  }, []);
+
+  // --- FUNÇÃO PRINCIPAL DE CARREGAMENTO (Sincroniza Front com Back) ---
+  const carregarDadosPonto = useCallback(async () => {
+    if (!user?.id || !token) return;
+
+    try {
+      const resPonto = await fetch(
+        `${API_URL}/colaborador/linha-tempo/${user.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (resPonto.ok) {
+        const data = await resPonto.json();
+
+        // 1. Atualiza dados básicos
+        setPontoId(data.id);
+        setTimeline(mapApiToTimeline(data));
+        setServicosConcluidos(
+          data.registroDoColaborador?.filter((r: any) => r.finalizacao)
+            .length || 0
+        );
+
+        // 2. Lógica de Estado (Máquina de Estados)
+        if (data.entrada) {
+          setHoraEntrada(new Date(data.entrada));
+
+          if (data.saida) {
+            setStatus("ENCERRADO");
+            setServicoAtivo(null);
+          } else if (data.almoco && !data.retornoAlmoço) {
+            setStatus("ALMOCO");
+            setServicoAtivo(null);
+          } else {
+            // Verifica se tem tarefa aberta (sem data de finalização)
+            const tarefaAberta = data.registroDoColaborador?.find(
+              (r: any) => !r.finalizacao
+            );
+
+            if (tarefaAberta) {
+              const nomeCliente =
+                clientes.find((c) => c.user_id === tarefaAberta.empresaId)
+                  ?.user_name || "Cliente em Atendimento";
+
+              setServicoAtivo({
+                id: tarefaAberta.id,
+                clienteId: String(tarefaAberta.empresaId),
+                clienteNome: nomeCliente,
+                atividade: tarefaAberta.atividade,
+                inicio: new Date(tarefaAberta.inicio || new Date()),
+              });
+              setStatus("EM_SERVICO");
+            } else {
+              setServicoAtivo(null);
+              setStatus("DISPONIVEL");
+            }
+          }
+        } else {
+          setStatus("OFF");
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao sincronizar dados:", e);
+    }
+  }, [user?.id, token, mapApiToTimeline, clientes]);
+
+  // --- EFEITOS ---
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const fetchInicial = async () => {
+      if (!token) return;
+      try {
+        const resClientes = await fetch(`${API_URL}/user/clientes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const dataClientes = await resClientes.json();
+        setClientes(Array.isArray(dataClientes) ? dataClientes : []);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchInicial();
   }, [token]);
 
-  // --- HELPERS VISUAIS ---
+  useEffect(() => {
+    if (token && user?.id) {
+      carregarDadosPonto();
+    }
+  }, [carregarDadosPonto, token, user?.id]);
 
-  const getPrioridadeVariant = (tipo: string): "destructive" | "secondary" | "outline" => {
-    if (tipo === "Corretivo") return "destructive";
-    return "outline"; 
+  // --- HANDLERS (Ações do Usuário) ---
+
+  const handleRegistrarPonto = async (
+    novoStatus: StatusPonto,
+    tipoEvento: string
+  ) => {
+    try {
+      if (tipoEvento === "Entrada") {
+        await fetch(`${API_URL}/colaborador`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({}),
+        });
+        toast.success("Entrada registrada!");
+      } else {
+        const agora = new Date();
+        let body = {};
+        if (novoStatus === "ALMOCO") body = { almoco: agora };
+        else if (tipoEvento === "Volta do Almoço")
+          body = { retornoAlmoço: agora };
+        else if (novoStatus === "ENCERRADO") body = { saida: agora };
+
+        await fetch(`${API_URL}/colaborador/${pontoId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        toast.success(`${tipoEvento} registrado!`);
+      }
+      await carregarDadosPonto();
+    } catch (e) {
+      toast.error("Erro de conexão com o servidor");
+    }
   };
 
-  const getPrioridadeLabel = (tipo: string) => {
-      return tipo === "Corretivo" ? "Alta" : "Normal";
-  }
+  const handleIniciarServico = async () => {
+    if (!clienteSelecionado || !atividadeInput)
+      return toast.error("Preencha os campos.");
 
-  // --- RENDERIZAÇÃO ---
+    try {
+      // 1. Cria o payload JSON
+      const payload = {
+        empresaId: Number(clienteSelecionado),
+        atividade: atividadeInput,
+      };
 
-  if (isLoading) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Carregando dashboard...</span>
-        </div>
-    );
-  }
+      // 2. Coloca o JSON dentro do campo 'data' do FormData
+      const formData = new FormData();
+      formData.append("data", JSON.stringify(payload));
 
-  if (error) {
-    return (
-        <div className="flex h-64 w-full items-center justify-center text-destructive">
-            <AlertTriangle className="mr-2 h-6 w-6" />
-            <span>{error}</span>
-        </div>
-    );
-  }
+      const res = await fetch(
+        `${API_URL}/colaborador/registro-colaborador/${pontoId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Sem Content-Type (Browser define multipart/form-data boundary)
+          },
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Serviço iniciado!");
+        setAtividadeInput("");
+        await carregarDadosPonto();
+      } else {
+        toast.error("Não foi possível iniciar o serviço.");
+      }
+    } catch (e) {
+      toast.error("Erro ao iniciar.");
+    }
+  };
+
+  const handleFinalizarServico = async () => {
+    if (!descricaoFim) return toast.error("Relatório obrigatório.");
+
+    try {
+      // 1. Cria o payload JSON
+      const payload = {
+        atividadeFinalizada: descricaoFim,
+        finalizacao: new Date(),
+      };
+
+      // 2. Coloca o JSON dentro do campo 'data' do FormData
+      const formData = new FormData();
+      formData.append("data", JSON.stringify(payload));
+
+      // 3. Se houver imagem, anexa ao FormData
+      if (fotoConclusao) {
+        formData.append("file", fotoConclusao);
+      }
+
+      const res = await fetch(
+        `${API_URL}/colaborador/registro-colaborador/${pontoId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Sem Content-Type
+          },
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Serviço finalizado!");
+        setDescricaoFim("");
+        setFotoConclusao(null); // Limpa a foto
+        setClienteSelecionado("");
+        await carregarDadosPonto();
+      }
+    } catch (e) {
+      toast.error("Erro ao finalizar.");
+    }
+  };
+
+  const handleReiniciar = () => {
+    setStatus("OFF");
+    setPontoId(null);
+    setTimeline([]);
+    setHoraEntrada(null);
+    setServicosConcluidos(0);
+    setServicoAtivo(null);
+    setClienteSelecionado("");
+    setAtividadeInput("");
+    setDescricaoFim("");
+    setFotoConclusao(null);
+  };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight">Visão Geral - Manutentor</h2>
-      
-      {/* SEÇÃO KPI (Omitido para brevidade, mantém igual ao seu código original) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pendentes (Semana)</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-4xl font-bold">{kpis.pendentes}</div>
-                <p className="text-xs text-muted-foreground">Novas solicitações</p>
-            </CardContent>
-        </Card>
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">OS Em Andamento</CardTitle>
-                <Wrench className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-4xl font-bold">{kpis.emAndamento}</div>
-                <p className="text-xs text-muted-foreground">Na sua lista atual</p>
-            </CardContent>
-        </Card>
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Finalizadas (Semana)</CardTitle>
-                <CalendarCheck className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-4xl font-bold">{kpis.finalizadosSemana}</div>
-                <p className="text-xs text-muted-foreground">Concluídas com sucesso</p>
-            </CardContent>
-        </Card>
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Equipamentos Offline</CardTitle>
-                <Package className="h-4 w-4 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-4xl font-bold">--</div>
-                <p className="text-xs text-muted-foreground">Dado não disponível</p>
-            </CardContent>
-        </Card>
+    <div className="mx-auto space-y-8 p-4 md:p-8 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Olá, {user?.nome || "Colaborador"} 👋
+          </h1>
+          <p className="text-muted-foreground mt-1 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" /> {localizacao}
+          </p>
+        </div>
+        <div className="flex items-center gap-4 bg-card border rounded-lg p-3 shadow-sm">
+          <div className="text-right px-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold">
+              Horário Atual
+            </p>
+            <p className="text-2xl font-bold tabular-nums leading-none">
+              {format(currentTime, "HH:mm")}
+              <span className="text-sm text-muted-foreground font-normal ml-1">
+                :{format(currentTime, "ss")}
+              </span>
+            </p>
+          </div>
+          <div className="h-10 w-px bg-border" />
+          <div className="px-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold">
+              Data
+            </p>
+            <p className="text-sm font-medium">
+              {format(currentTime, "dd 'de' MMM, yyyy", { locale: ptBR })}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* GRÁFICO */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Fluxo de Ordens de Serviço</CardTitle>
-            <CardDescription>Pendentes vs. Finalizadas (Últimos 7 dias)</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={30} allowDecimals={false} />
-                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }} />
-                <Legend iconType="circle" />
-                <Bar dataKey="abertas" name="Pendentes" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="concluidas" name="Finalizadas" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Painel de Ações */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border-t-4 border-t-primary shadow-md overflow-hidden">
+            <div className="bg-muted/30 p-4 border-b flex justify-between items-center">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-primary" /> Painel de
+                Controle
+              </h2>
+              <Badge
+                variant={
+                  status === "EM_SERVICO"
+                    ? "default"
+                    : status === "ALMOCO"
+                    ? "secondary"
+                    : "outline"
+                }
+              >
+                {status}
+              </Badge>
+            </div>
+            <CardContent className="p-6">
+              {status === "OFF" && (
+                <div className="text-center py-10">
+                  <Clock className="w-16 h-16 text-primary/20 mx-auto mb-4" />
+                  <Button
+                    size="lg"
+                    className="px-10"
+                    onClick={() =>
+                      handleRegistrarPonto("DISPONIVEL", "Entrada")
+                    }
+                  >
+                    Registrar Entrada
+                  </Button>
+                </div>
+              )}
 
-        {/* TABELA DE TAREFAS */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Minhas Tarefas</CardTitle>
-            <CardDescription>
-                OS atribuídas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Equipamento</TableHead>
-                  <TableHead>Prio.</TableHead>
-                  <TableHead>Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tarefas.length === 0 ? (
-                    <TableRow>
-                        <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                            Nenhuma tarefa encontrada.
-                        </TableCell>
-                    </TableRow>
-                ) : (
-                    tarefas.map((os) => (
-                    <TableRow key={os.id}>
-                        <TableCell className="font-medium p-2">
-                        <div className="font-medium">{os.modeloCompressor}</div>
-                        <div className="text-xs text-muted-foreground">OS-{os.id}</div>
-                        <div className="text-xs text-blue-500 font-semibold">{os.status}</div>
-                        </TableCell>
-                        <TableCell className="p-2">
-                        <Badge variant={getPrioridadeVariant(os.tipo)}>
-                            {getPrioridadeLabel(os.tipo)}
-                        </Badge>
-                        </TableCell>
-                        <TableCell className="text-right p-2">
-                        
-                        {/* 4. BOTÃO ATUALIZADO COM NAVEGAÇÃO */}
-                        <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => router.push(`/equipamento/?id=${os.equipamentoId}`)}
+              {status === "DISPONIVEL" && (
+                <div className="space-y-6 animate-in slide-in-from-bottom-2">
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-lg border border-dashed border-primary/30">
+                    <Label className="text-primary font-bold mb-4 block">
+                      Iniciar Novo Serviço
+                    </Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <Label>Cliente</Label>
+                        <Select
+                          value={clienteSelecionado}
+                          onValueChange={setClienteSelecionado}
                         >
-                            Ver
-                        </Button>
-                        
-                        </TableCell>
-                    </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clientes.map((c) => (
+                              <SelectItem
+                                key={c.user_id}
+                                value={String(c.user_id)}
+                              >
+                                {c.user_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Atividade</Label>
+                        <Input
+                          placeholder="O que será feito?"
+                          value={atividadeInput}
+                          onChange={(e) => setAtividadeInput(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button className="w-full" onClick={handleIniciarServico}>
+                      Começar Agora
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button
+                      variant="outline"
+                      className="h-20"
+                      onClick={() =>
+                        handleRegistrarPonto("ALMOCO", "Saída para Almoço")
+                      }
+                    >
+                      <Coffee className="mr-2 h-5 w-5 text-yellow-600" /> Pausa
+                      Almoço
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-20 border-red-200 hover:bg-red-50"
+                      onClick={() =>
+                        handleRegistrarPonto("ENCERRADO", "Saída do Trabalho")
+                      }
+                    >
+                      <LogOut className="mr-2 h-5 w-5 text-red-600" /> Encerrar
+                      Dia
+                    </Button>
+                  </div>
+                </div>
+              )}
 
+              {status === "EM_SERVICO" && servicoAtivo && (
+                <div className="space-y-6 animate-in zoom-in-95">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-2xl font-bold text-primary">
+                        {servicoAtivo.clienteNome}
+                      </h3>
+                      <p className="text-muted-foreground">
+                        {servicoAtivo.atividade}
+                      </p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 border-green-200">
+                      Em Execução
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Relatório de Conclusão</Label>
+                      <Textarea
+                        placeholder="Descreva o que foi feito..."
+                        value={descricaoFim}
+                        onChange={(e) => setDescricaoFim(e.target.value)}
+                        className="min-h-[150px]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Camera className="w-4 h-4" /> Foto do Serviço
+                        (Opcional)
+                      </Label>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) =>
+                          setFotoConclusao(e.target.files?.[0] || null)
+                        }
+                        className="cursor-pointer"
+                      />
+                      {fotoConclusao && (
+                        <p className="text-xs text-green-600 font-medium">
+                          Imagem selecionada: {fotoConclusao.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="lg"
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={handleFinalizarServico}
+                  >
+                    Finalizar e Salvar
+                  </Button>
+                </div>
+              )}
+
+              {status === "ALMOCO" && (
+                <div className="text-center py-12">
+                  <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                    <Coffee className="w-10 h-10 text-yellow-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2">Pausa de Almoço</h3>
+                  <Button
+                    size="lg"
+                    variant="default"
+                    className="bg-yellow-600"
+                    onClick={() =>
+                      handleRegistrarPonto("DISPONIVEL", "Volta do Almoço")
+                    }
+                  >
+                    Registrar Retorno
+                  </Button>
+                </div>
+              )}
+
+              {status === "ENCERRADO" && (
+                <div className="flex flex-col items-center justify-center text-center py-10 animate-in zoom-in duration-500">
+                  <div className="bg-green-100 dark:bg-green-900/30 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                    <CheckCircle2 className="w-12 h-12 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mb-2">
+                    Ótimo trabalho por hoje!
+                  </h2>
+                  <p className="text-muted-foreground text-lg mb-8 max-w-md">
+                    Bom descanso e até a próxima! 🌙
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleReiniciar}
+                    className="border-dashed"
+                  >
+                    <History className="mr-2 w-4 h-4" />
+                    Reiniciar Painel
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-xs font-bold text-muted-foreground uppercase">
+                  Tempo Total
+                </p>
+                <p className="text-2xl font-bold text-primary">
+                  {horaEntrada
+                    ? differenceInMinutes(currentTime, horaEntrada) + " min"
+                    : "--"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-xs font-bold text-muted-foreground uppercase">
+                  Serviços
+                </p>
+                <p className="text-2xl font-bold text-green-600">
+                  {servicosConcluidos}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="h-[500px] flex flex-col shadow-sm">
+            <CardHeader className="pb-2 bg-muted/20 border-b">
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="w-4 h-4" /> Linha do Tempo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full">
+                <div className="p-4 space-y-6">
+                  {timeline.length === 0 ? (
+                    <div className="text-center py-20 opacity-30">
+                      <CalendarDays className="w-12 h-12 mx-auto mb-2" />
+                      <p>Sem registros hoje</p>
+                    </div>
+                  ) : (
+                    timeline.map((item) => (
+                      <div key={item.id} className="relative pl-6 pb-2">
+                        <div className="absolute left-[9px] top-2 bottom-0 w-px bg-border" />
+                        <div
+                          className={`absolute left-0 top-1 w-5 h-5 rounded-full border-2 bg-background z-10 flex items-center justify-center ${
+                            item.status === "done"
+                              ? "border-green-500"
+                              : "border-primary"
+                          }`}
+                        >
+                          {item.status === "done" ? (
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                          ) : (
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {item.hora}
+                          </span>
+                          <span className="text-sm font-bold">
+                            {item.titulo}
+                          </span>
+                          {item.descricao && (
+                            <span className="text-xs text-muted-foreground bg-slate-50 p-2 rounded border mt-1 italic">
+                              {item.descricao}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

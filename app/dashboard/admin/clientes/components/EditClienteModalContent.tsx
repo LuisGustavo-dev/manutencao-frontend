@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // <--- Adicionado useEffect
+import { useState, useEffect } from "react";
 import {
   DialogHeader,
   DialogTitle,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox"; // <--- 1. Importação do Checkbox
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/contexts/authContext";
@@ -20,6 +21,7 @@ interface ClienteFormState {
   email: string;
   telefone: string;
   password: string;
+  precisaAssinatura: boolean; // <--- 2. Novo campo no estado
 }
 
 interface EditClienteModalProps {
@@ -41,34 +43,38 @@ export function EditClienteModalContent({
     email: cliente.email || "",
     telefone: cliente.telefone || "",
     password: "",
+    precisaAssinatura: false,
   });
 
-  // --- CORREÇÃO AQUI ---
-  // Este useEffect garante que, se o objeto 'cliente' mudar (ex: abrir o modal),
-  // os campos do formulário são atualizados com os dados vindos do banco.
   useEffect(() => {
     if (cliente) {
-      // Dica de Debug: Olhe no console do navegador (F12) para ver
-      // se o backend está mandando 'telefone', 'phone', 'celular', etc.
       console.log("Dados do cliente recebidos para edição:", cliente);
 
       setFormData({
         id: cliente.id,
         nome: cliente.nomeFantasia || cliente.name || "",
         email: cliente.email || "",
-        telefone: cliente.telefone || "", // Verifique se no banco não está salvo como 'phone' ou 'celular'
-        password: "", // Senha reseta sempre que muda o cliente
+        telefone: cliente.telefone || "",
+        password: "",
+        // <--- 3. Carrega o valor atual do banco (assumindo que vem como requiresSubscription)
+        precisaAssinatura: cliente.requiresSubscription || false,
       });
     }
   }, [cliente]);
-  // ---------------------
 
-  const handleChange = (field: keyof ClienteFormState, value: string) => {
-    if (field === "telefone") {
+  // <--- 4. Atualizado para aceitar string ou boolean
+  const handleChange = (
+    field: keyof ClienteFormState,
+    value: string | boolean
+  ) => {
+    // Lógica específica para telefone (garante que value é string antes de dar replace)
+    if (field === "telefone" && typeof value === "string") {
       const onlyNumbers = value.replace(/\D/g, "");
       setFormData((prev) => ({ ...prev, [field]: onlyNumbers }));
       return;
     }
+
+    // Atualização genérica
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -85,6 +91,7 @@ export function EditClienteModalContent({
         name: formData.nome,
         email: formData.email,
         telefone: formData.telefone,
+        requiresSubscription: formData.precisaAssinatura, // <--- 5. Envia ao backend
       };
 
       if (formData.password && formData.password.trim() !== "") {
@@ -178,6 +185,24 @@ export function EditClienteModalContent({
           <p className="text-xs text-muted-foreground mt-1">
             Preencha apenas se desejar alterar a senha de acesso.
           </p>
+        </div>
+
+        {/* <--- 6. UI do Checkbox adicionada */}
+        <div className="flex items-center space-x-2 mt-2 p-1">
+          <Checkbox
+            id="assinatura-edit"
+            checked={formData.precisaAssinatura}
+            onCheckedChange={(checked) =>
+              handleChange("precisaAssinatura", checked === true)
+            }
+            disabled={isLoading}
+          />
+          <Label
+            htmlFor="assinatura-edit"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Requer assinatura ao finalziar serviços?
+          </Label>
         </div>
       </div>
 
