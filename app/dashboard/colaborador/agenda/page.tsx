@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Loader2,
   AlertTriangle,
+  Clock, // Ícone novo para "Em andamento"
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/contexts/authContext";
@@ -37,11 +38,8 @@ import {
 interface VisitaAPI {
   id: number;
   atividade: string;
-  inicio: string | null;
-  urlArquivo: string;
-  atividadeFinalizada: string;
-  finalizacao: string | null;
   dataMarcada: string;
+  status: string; // "Pendente" | "Iniciado"
   empresa: string;
 }
 
@@ -52,7 +50,7 @@ export default function AgendaPage() {
   const [visitas, setVisitas] = useState<VisitaAPI[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State para controlar qual botão está carregando (iniciando serviço)
+  // State para controlar qual botão está carregando
   const [startingId, setStartingId] = useState<number | null>(null);
 
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
@@ -101,13 +99,26 @@ export default function AgendaPage() {
         hora: "-",
         color: "gray",
         statusText: "Indefinido",
+        isUrgent: false,
       };
 
     const hora = format(date, "HH:mm");
     const diaMes = format(date, "dd/MM");
 
-    // 1. Atrasado
-    if (isPast(date) && !visita.inicio) {
+    // 1. PRIORIDADE: Se já foi INICIADO
+    // Ao definir isUrgent: false, o botão de iniciar some
+    if (visita.status === "Iniciado") {
+      return {
+        label: "ANDAMENTO",
+        hora: hora,
+        color: "blue", // Cor azul para indicar progresso
+        statusText: "Atendimento em andamento",
+        isUrgent: false, // <--- Isso remove o botão de Iniciar
+      };
+    }
+
+    // 2. Atrasado (Data passou E status é Pendente)
+    if (isPast(date) && visita.status === "Pendente") {
       return {
         label: "ATRASADO",
         hora: hora,
@@ -117,7 +128,7 @@ export default function AgendaPage() {
       };
     }
 
-    // 2. Hoje
+    // 3. Hoje (Pendente)
     if (isToday(date)) {
       return {
         label: "HOJE",
@@ -128,18 +139,18 @@ export default function AgendaPage() {
       };
     }
 
-    // 3. Amanhã
+    // 4. Amanhã
     if (isTomorrow(date)) {
       return {
         label: "AMANHÃ",
         hora: hora,
-        color: "blue",
+        color: "blue", // Azul claro (visual padrão do card)
         statusText: "Visita agendada para amanhã",
         isUrgent: false,
       };
     }
 
-    // 4. Futuro
+    // 5. Futuro
     return {
       label: diaMes,
       hora: hora,
@@ -156,7 +167,8 @@ export default function AgendaPage() {
       case "green":
         return "border-l-green-500 bg-green-50/10";
       case "blue":
-        return "border-l-blue-400 bg-blue-50/10";
+        // Diferencia levemente o azul de "Andamento" vs "Amanhã" se desejar, ou mantém padrão
+        return "border-l-blue-500 bg-blue-50/20";
       default:
         return "border-l-gray-300";
     }
@@ -186,28 +198,24 @@ export default function AgendaPage() {
     setIsDetailsOpen(true);
   };
 
-  // --- AÇÃO: INICIAR SERVIÇO (ATUALIZADA) ---
+  // --- AÇÃO: INICIAR SERVIÇO ---
   const handleStartService = async (visita: VisitaAPI) => {
     if (!token) {
       toast.error("Erro de autenticação.");
       return;
     }
 
-    // Define qual ID está carregando para bloquear o botão e mostrar spinner
     setStartingId(visita.id);
 
     try {
-      // Chama a rota da API com o ID do agendamento
       const response = await fetch(
         `http://localhost:3340/colaborador/visita-agendada/colaborador/${visita.id}`,
         {
-          method: "POST", // Geralmente update de status é PATCH, mude para POST se sua API exigir
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
-            // "Content-Type" não é estritamente necessário se não enviamos body, mas é boa prática manter
             "Content-Type": "application/json",
           },
-          // Body removido conforme solicitado ("não precisa enviar nada")
         }
       );
 
@@ -217,16 +225,12 @@ export default function AgendaPage() {
 
       toast.success(`Iniciando atendimento em ${visita.empresa}`);
 
-      // Fecha o modal se estiver aberto
       setIsDetailsOpen(false);
-
-      // Redireciona
       router.push("/dashboard/colaborador");
     } catch (error) {
       console.error(error);
       toast.error("Erro ao iniciar a visita. Tente novamente.");
     } finally {
-      // Remove o estado de loading do botão
       setStartingId(null);
     }
   };
@@ -255,7 +259,8 @@ export default function AgendaPage() {
             {
               visitas.filter((v) => {
                 const d = parseISO(v.dataMarcada);
-                return isPast(d) && !v.inicio;
+                // Conta apenas pendentes e passadas
+                return isPast(d) && v.status === "Pendente";
               }).length
             }{" "}
             Atrasadas
@@ -294,6 +299,9 @@ export default function AgendaPage() {
                       {info.color === "red" && (
                         <AlertTriangle className="w-4 h-4 mt-1" />
                       )}
+                      {info.label === "ANDAMENTO" && (
+                        <Clock className="w-4 h-4 mt-1 animate-pulse" />
+                      )}
                     </div>
 
                     <div className="flex-1">
@@ -313,12 +321,24 @@ export default function AgendaPage() {
                         >
                           {item.atividade}
                         </Badge>
+                        <Badge
+                          variant={
+                            item.status === "Iniciado" ? "default" : "outline"
+                          }
+                          className="text-xs"
+                        >
+                          {item.status}
+                        </Badge>
                       </div>
                     </div>
                   </div>
 
                   {/* Botões de Ação */}
                   <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
+                    {/*
+                      O botão de iniciar só renderiza se info.isUrgent for true.
+                      Como definimos isUrgent: false para status 'Iniciado', o botão some.
+                    */}
                     {info.isUrgent ? (
                       <Button
                         disabled={isItemLoading}
@@ -366,6 +386,8 @@ export default function AgendaPage() {
                     className={
                       selectedEvent.infoDisplay.color === "red"
                         ? "border-red-500 text-red-500"
+                        : selectedEvent.infoDisplay.color === "blue"
+                        ? "border-blue-500 text-blue-500"
                         : ""
                     }
                   >
@@ -434,24 +456,28 @@ export default function AgendaPage() {
                 >
                   Fechar
                 </Button>
-                <Button
-                  disabled={startingId !== null}
-                  className={
-                    selectedEvent.infoDisplay.color === "red"
-                      ? "bg-red-600 hover:bg-red-700 text-white"
-                      : "bg-green-600 hover:bg-green-700 text-white"
-                  }
-                  onClick={() => handleStartService(selectedEvent)}
-                >
-                  {startingId === selectedEvent.id ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                  )}
-                  {startingId === selectedEvent.id
-                    ? "Iniciando..."
-                    : "Iniciar Agora"}
-                </Button>
+
+                {/* Botão no Modal também obedece à regra isUrgent */}
+                {selectedEvent.infoDisplay.isUrgent && (
+                  <Button
+                    disabled={startingId !== null}
+                    className={
+                      selectedEvent.infoDisplay.color === "red"
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }
+                    onClick={() => handleStartService(selectedEvent)}
+                  >
+                    {startingId === selectedEvent.id ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    {startingId === selectedEvent.id
+                      ? "Iniciando..."
+                      : "Iniciar Agora"}
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
