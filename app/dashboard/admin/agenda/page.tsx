@@ -33,74 +33,94 @@ import {
   MapPin,
   Loader2,
   RefreshCw,
-  Clock,
   Briefcase,
+  Wrench,
+  AlertCircle,
+  CalendarClock,
+  CalendarCheck,
+  AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/contexts/authContext";
-import { format, parseISO, isValid } from "date-fns";
+import { format, parseISO, isValid, isSameDay } from "date-fns";
 
 // --- INTERFACES ---
 interface Visita {
   id: number;
-  atividade: string;
-  inicio: string | null;
-  urlArquivo: string;
-  atividadeFinalizada: string;
-  finalizacao: string | null;
-  dataMarcada: string;
-  empresa: string;
-  user: string;
-  email: string;
+  status: string;
+  horaAbertura: string;
+  horaInicioAtendimento: string | null;
+  horaFinalizacao: string | null;
+  dataMarcada: string | null;
+  tipo: string;
+  name: string;
+  telefone: string;
+  modeloCompressor: string;
+  equipamentoId: number;
+  tecnicoName: string;
 }
 
-// Interfaces auxiliares para os selects
 interface TecnicoOption {
   id: number;
   nome: string;
 }
 
-interface ClienteOption {
+interface ChamadoEquipamento {
   id: number;
-  nomeFantasia: string;
+  dataMarcada: string | null;
+  status: string;
+}
+
+interface EquipamentoOption {
+  id: number;
+  modeloCompressor: string;
+  aplicacao: string;
+  user: {
+    id: number;
+    name: string;
+  };
+  chamados: ChamadoEquipamento[];
 }
 
 export default function AdminAgendaPage() {
   const { token } = useAuth();
 
-  // Estados da Lista Principal
+  // Estados
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados do Modal e Formulário
+  // Modal e Formulário
   const [open, setOpen] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [tecnicosList, setTecnicosList] = useState<TecnicoOption[]>([]);
-  const [clientesList, setClientesList] = useState<ClienteOption[]>([]);
+  const [equipamentosList, setEquipamentosList] = useState<EquipamentoOption[]>(
+    []
+  );
 
-  // Campos do Formulário
   const [selectedTecnico, setSelectedTecnico] = useState("");
-  const [selectedCliente, setSelectedCliente] = useState("");
+  const [selectedEquipamentoId, setSelectedEquipamentoId] = useState("");
+
+  // Adicionado o campo "tipo" ao formData
   const [formData, setFormData] = useState({
     data: "",
     hora: "",
     atividade: "",
+    tipo: "Preventiva", // Valor padrão
   });
 
-  // --- 1. BUSCAR VISITAS (LISTAGEM) ---
+  const [dateConflict, setDateConflict] = useState(false);
+
+  // --- 1. BUSCAR VISITAS ---
   const fetchVisitas = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        "http://localhost:3340/colaborador/visita-agendada/",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch("http://localhost:3340/chamado", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       if (!response.ok) throw new Error("Falha ao buscar agenda.");
 
@@ -121,24 +141,23 @@ export default function AdminAgendaPage() {
     }
   }, [token]);
 
-  // --- 2. BUSCAR OPÇÕES DO SELECT (AO ABRIR MODAL) ---
+  // --- 2. BUSCAR OPÇÕES ---
   const fetchOptions = async () => {
     setLoadingOptions(true);
     try {
-      // Buscar Técnicos, Colaboradores e Clientes em paralelo
-      const [resTecnicos, resColaboradores, resClientes] = await Promise.all([
-        fetch("http://localhost:3340/user/tecnicos", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("http://localhost:3340/user/colaboradores", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("http://localhost:3340/user/clientes", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+      const [resTecnicos, resColaboradores, resEquipamentos] =
+        await Promise.all([
+          fetch("http://localhost:3340/user/tecnicos", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch("http://localhost:3340/user/colaboradores", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch("http://localhost:3340/equipamento/", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-      // --- PROCESSAMENTO DE TÉCNICOS ---
       const dataTecnicos = resTecnicos.ok ? await resTecnicos.json() : [];
       const dataColaboradores = resColaboradores.ok
         ? await resColaboradores.json()
@@ -149,7 +168,6 @@ export default function AdminAgendaPage() {
         ...(Array.isArray(dataColaboradores) ? dataColaboradores : []),
       ];
 
-      // Remove duplicatas baseadas no ID para técnicos
       const tecnicosUnicos = Array.from(
         new Map(todosTecnicos.map((item) => [item.id, item])).values()
       );
@@ -159,62 +177,78 @@ export default function AdminAgendaPage() {
         nome: t.nome || t.name || t.user || "Sem Nome",
       }));
 
-      // --- PROCESSAMENTO DE CLIENTES ---
-      const dataClientes = resClientes.ok ? await resClientes.json() : [];
-      const clientesArray = Array.isArray(dataClientes)
-        ? dataClientes
-        : [dataClientes];
-
-      // 1. Remove duplicatas usando 'user_id' como chave
-      const clientesUnicos = Array.from(
-        new Map(clientesArray.map((item: any) => [item.user_id, item])).values()
-      );
-
-      // 2. Mapeia usando os campos corretos da sua API
-      const clientesFormatados = clientesUnicos.map((c: any) => ({
-        id: c.user_id, // <--- CORREÇÃO: user_id em vez de id
-        nomeFantasia: c.user_name, // <--- CORREÇÃO: user_name é o campo que vem no JSON
-      }));
+      const dataEquip = resEquipamentos.ok ? await resEquipamentos.json() : [];
+      const equipamentosArray = Array.isArray(dataEquip)
+        ? dataEquip
+        : [dataEquip];
 
       setTecnicosList(tecnicosFormatados);
-      setClientesList(clientesFormatados);
+      setEquipamentosList(equipamentosArray);
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao carregar listas de seleção.");
+      toast.error("Erro ao carregar listas.");
     } finally {
       setLoadingOptions(false);
     }
   };
 
-  // Carrega opções apenas quando abre o modal
   useEffect(() => {
     if (open && token) {
       fetchOptions();
     }
   }, [open, token]);
 
-  // --- 3. ENVIAR AGENDAMENTO (POST) ---
+  // --- 3. VALIDAÇÃO DE CONFLITO ---
+  useEffect(() => {
+    if (!selectedEquipamentoId || !formData.data) {
+      setDateConflict(false);
+      return;
+    }
+
+    const equipamentoSelecionado = equipamentosList.find(
+      (eq) => String(eq.id) === selectedEquipamentoId
+    );
+
+    if (!equipamentoSelecionado) return;
+
+    const dataEscolhida = parseISO(formData.data);
+
+    const conflito = equipamentoSelecionado.chamados.some((chamado) => {
+      if (!chamado.dataMarcada) return false;
+      const dataChamado = parseISO(chamado.dataMarcada);
+      return isSameDay(dataChamado, dataEscolhida);
+    });
+
+    setDateConflict(conflito);
+  }, [selectedEquipamentoId, formData.data, equipamentosList]);
+
+  // --- 4. AGENDAR (NOVA ROTA) ---
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (dateConflict) {
+      toast.error("Este equipamento já possui visita nesta data!");
+      return;
+    }
+
     if (
       !selectedTecnico ||
-      !selectedCliente ||
+      !selectedEquipamentoId ||
       !formData.data ||
       !formData.hora ||
-      !formData.atividade
+      !formData.atividade ||
+      !formData.tipo
     ) {
       toast.error("Preencha todos os campos.");
       return;
     }
 
     try {
-      // Formatar Data para ISO String
       const dataHoraString = `${formData.data}T${formData.hora}:00`;
-      const dataObj = new Date(dataHoraString);
-      const dataMarcadaISO = dataObj.toISOString();
+      const dataMarcadaISO = new Date(dataHoraString).toISOString();
 
-      const url = `http://localhost:3340/colaborador/visita-agendada/colaborador/${selectedTecnico}/empresa/${selectedCliente}`;
+      // Nova rota solicitada: /agendar/:tecnicoId/:equipamentoId
+      const url = `http://localhost:3340/colaborador/agendar/${selectedTecnico}/${selectedEquipamentoId}`;
 
       const response = await fetch(url, {
         method: "POST",
@@ -225,22 +259,20 @@ export default function AdminAgendaPage() {
         body: JSON.stringify({
           atividade: formData.atividade,
           dataMarcada: dataMarcadaISO,
+          tipo: formData.tipo, // Novo campo
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Erro ao criar agendamento.");
-      }
+      if (!response.ok) throw new Error("Erro ao criar agendamento.");
 
       toast.success("Visita agendada com sucesso!");
       setOpen(false);
 
-      // Limpar formulário
-      setFormData({ data: "", hora: "", atividade: "" });
+      // Limpar formulário (mantendo Preventiva como padrão)
+      setFormData({ data: "", hora: "", atividade: "", tipo: "Preventiva" });
       setSelectedTecnico("");
-      setSelectedCliente("");
-
-      // Atualizar lista
+      setSelectedEquipamentoId("");
+      setDateConflict(false);
       fetchVisitas();
     } catch (error) {
       console.error(error);
@@ -248,16 +280,22 @@ export default function AdminAgendaPage() {
     }
   };
 
-  // --- HELPERS DE RENDERIZAÇÃO ---
+  // --- HELPERS ---
   const getStatus = (v: Visita) => {
-    if (v.finalizacao)
+    if (v.horaFinalizacao)
       return { label: "CONCLUÍDO", class: "bg-green-100 text-green-700" };
-    if (v.inicio)
+    if (v.status === "Em andamento" || v.horaInicioAtendimento)
       return { label: "EM ANDAMENTO", class: "bg-blue-100 text-blue-700" };
-    return { label: "AGENDADO", class: "bg-yellow-100 text-yellow-700" };
+    if (v.status === "Aberto")
+      return { label: "ABERTO", class: "bg-yellow-100 text-yellow-700" };
+    return {
+      label: v.status?.toUpperCase(),
+      class: "bg-gray-100 text-gray-700",
+    };
   };
 
-  const formatDataHora = (isoString: string) => {
+  const formatDataHora = (isoString: string | null) => {
+    if (!isoString) return { data: "--/--", hora: "--:--" };
     try {
       const date = parseISO(isoString);
       if (!isValid(date)) return { data: "-", hora: "-" };
@@ -278,7 +316,7 @@ export default function AdminAgendaPage() {
             Agenda de Visitas
           </h1>
           <p className="text-muted-foreground">
-            Distribua as ordens de serviço e visitas técnicas.
+            Gestão de chamados corretivos e visitas preventivas.
           </p>
         </div>
 
@@ -288,12 +326,12 @@ export default function AdminAgendaPage() {
               <Plus className="w-4 h-4" /> Nova Visita
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Agendar Nova Visita</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleAgendar} className="space-y-4 py-4">
-              {/* Select Técnico */}
+              {/* SELECT TÉCNICO */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Técnico/Colaborador
@@ -320,46 +358,80 @@ export default function AdminAgendaPage() {
                 </Select>
               </div>
 
-              {/* Select Cliente */}
+              {/* SELECT EQUIPAMENTO */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Cliente</label>
+                <label className="text-sm font-medium">
+                  Equipamento / Cliente
+                </label>
                 <Select
-                  value={selectedCliente}
-                  onValueChange={setSelectedCliente}
+                  value={selectedEquipamentoId}
+                  onValueChange={setSelectedEquipamentoId}
                   disabled={loadingOptions}
                 >
                   <SelectTrigger className="w-full">
-                    <span className="truncate">
-                      <SelectValue
-                        placeholder={
-                          loadingOptions
-                            ? "Carregando..."
-                            : "Selecione o cliente"
-                        }
-                      />
-                    </span>
+                    <SelectValue
+                      placeholder={
+                        loadingOptions
+                          ? "Carregando..."
+                          : "Selecione o equipamento"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientesList.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.nomeFantasia}
+                    {equipamentosList.map((eq) => (
+                      <SelectItem key={eq.id} value={String(eq.id)}>
+                        <div className="flex flex-col text-left">
+                          <span className="font-medium">
+                            {eq.modeloCompressor}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {eq.user?.name} - {eq.aplicacao}
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Data e Hora */}
+              {/* TIPO DE VISITA (NOVO CAMPO) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tipo de Visita</label>
+                <Select
+                  value={formData.tipo}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, tipo: val })
+                  }
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Preventiva">Preventiva</SelectItem>
+                    <SelectItem value="Obra">Obra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* DATA E HORA */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Data</label>
                   <Input
                     type="date"
                     value={formData.data}
+                    className={dateConflict ? "border-red-500 bg-red-50" : ""}
                     onChange={(e) =>
                       setFormData({ ...formData, data: e.target.value })
                     }
                   />
+                  {dateConflict && (
+                    <div className="flex items-center gap-1 text-red-600 text-xs mt-1 animate-pulse">
+                      <AlertTriangle className="w-3 h-3" />
+                      Data indisponível
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Hora</label>
@@ -373,13 +445,13 @@ export default function AdminAgendaPage() {
                 </div>
               </div>
 
-              {/* Descrição */}
+              {/* DESCRIÇÃO */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  Serviço / Descrição
+                  Atividade / Descrição
                 </label>
                 <Input
-                  placeholder="Ex: Manutenção Preventiva"
+                  placeholder="Ex: Manutenção Preventiva Geral"
                   value={formData.atividade}
                   onChange={(e) =>
                     setFormData({ ...formData, atividade: e.target.value })
@@ -390,18 +462,20 @@ export default function AdminAgendaPage() {
               <Button
                 type="submit"
                 className="w-full mt-4"
-                disabled={loadingOptions}
+                disabled={loadingOptions || dateConflict}
+                variant={dateConflict ? "destructive" : "default"}
               >
                 {loadingOptions ? (
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 ) : null}
-                Confirmar Agendamento
+                {dateConflict ? "Data Indisponível" : "Confirmar Agendamento"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* TABELA DE LISTAGEM */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Próximas Visitas</CardTitle>
@@ -427,55 +501,99 @@ export default function AdminAgendaPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>Abertura</TableHead>
+                  <TableHead>Agendamento</TableHead>
                   <TableHead>Técnico</TableHead>
-                  <TableHead>Cliente / Atividade</TableHead>
+                  <TableHead>Cliente / Equipamento</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visitas.map((v) => {
-                  const { data, hora } = formatDataHora(v.dataMarcada);
+                  const abertura = formatDataHora(v.horaAbertura);
+                  const agendamento = formatDataHora(v.dataMarcada);
+                  const isScheduled = !!v.dataMarcada;
+
                   const statusInfo = getStatus(v);
+                  const isCorretivo = v.tipo === "Corretivo";
+                  const rowClasses = isCorretivo
+                    ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500"
+                    : "hover:bg-slate-50 border-l-4 border-l-transparent";
 
                   return (
-                    <TableRow key={v.id}>
+                    <TableRow
+                      key={v.id}
+                      className={`${rowClasses} transition-colors`}
+                    >
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold flex items-center gap-1 text-sm">
-                            <CalendarDays className="w-3 h-3 text-muted-foreground" />
-                            {data}
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                            <CalendarClock className="w-3 h-3" />
+                            {abertura.data}
                           </span>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" />
-                            {hora}
+                          <span className="text-[10px] text-muted-foreground/70 pl-4">
+                            {abertura.hora}
                           </span>
                         </div>
                       </TableCell>
+
                       <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2 font-medium text-sm">
-                            <User className="w-3 h-3 text-muted-foreground" />
-                            {v.user}
+                        {isScheduled ? (
+                          <div className="flex flex-col">
+                            <span className="font-bold flex items-center gap-1 text-sm text-foreground">
+                              <CalendarCheck className="w-3 h-3 text-primary" />
+                              {agendamento.data}
+                            </span>
+                            <span className="text-xs text-muted-foreground pl-4">
+                              {agendamento.hora}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-muted-foreground pl-5">
-                            {v.email}
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-[10px] font-medium border border-orange-200">
+                            Não agendado
                           </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-2 font-medium text-sm">
+                          <User className="w-3 h-3 text-muted-foreground" />
+                          {v.tecnicoName || "Sem técnico"}
                         </div>
                       </TableCell>
+
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2 font-medium text-sm">
                             <MapPin className="w-3 h-3 text-muted-foreground" />
-                            {v.empresa}
+                            {v.name}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Briefcase className="w-3 h-3" />
-                            {v.atividade}
+                            <Wrench className="w-3 h-3" />
+                            {v.modeloCompressor}
                           </div>
                         </div>
                       </TableCell>
+
+                      <TableCell>
+                        <div
+                          className={`flex items-center gap-2 font-bold text-xs ${
+                            isCorretivo
+                              ? "text-red-600"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {isCorretivo ? (
+                            <AlertCircle className="w-3 h-3" />
+                          ) : (
+                            <Briefcase className="w-3 h-3" />
+                          )}
+                          {v.tipo}
+                        </div>
+                      </TableCell>
+
                       <TableCell>
                         <span
                           className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${statusInfo.class}`}
@@ -483,6 +601,7 @@ export default function AdminAgendaPage() {
                           {statusInfo.label}
                         </span>
                       </TableCell>
+
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm">
                           Editar

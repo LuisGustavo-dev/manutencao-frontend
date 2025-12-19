@@ -48,10 +48,11 @@ interface ReembolsoRequest {
   tipo: string;
   valor: string;
   valorNumerico: number;
-  status: string;
+  status: "APROVADO" | "REJEITADO" | "PENDENTE"; // Tipagem mais estrita ajuda
   comprovante?: string;
 }
 
+// Interface baseada no JSON que você forneceu
 interface ApiResponse {
   id: number;
   data: string;
@@ -64,8 +65,6 @@ interface ApiResponse {
 export default function ReembolsoPage() {
   const [requests, setRequests] = useState<ReembolsoRequest[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Estado para controlar o loading do botão de salvar
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Estados do Formulário
@@ -73,7 +72,8 @@ export default function ReembolsoPage() {
   const [tipoDespesa, setTipoDespesa] = useState("");
   const [valorInput, setValorInput] = useState("");
   const [comprovante, setComprovante] = useState<File | null>(null);
-  const { token } = useAuth(); // Removi 'user' se não for usado explicitamente
+
+  const { token } = useAuth();
 
   // --- INTEGRAÇÃO COM API (GET) ---
   const fetchDespesas = async () => {
@@ -94,16 +94,32 @@ export default function ReembolsoPage() {
 
       const formattedData: ReembolsoRequest[] = data.map((item) => {
         const valorNum = parseFloat(item.valor);
+
+        // Tratamento de Data
         const dataObj = new Date(item.data);
         const dataFormatada = dataObj.toLocaleDateString("pt-BR");
+
+        // --- NORMALIZAÇÃO DO STATUS ---
+        // Transforma "Aprovada"/"Rejeitada" em "APROVADO"/"REJEITADO"
+        let statusNormalizado: "APROVADO" | "REJEITADO" | "PENDENTE" =
+          "PENDENTE";
+        const statusUpper = item.status.toUpperCase();
+
+        if (statusUpper.includes("APROVAD")) {
+          statusNormalizado = "APROVADO";
+        } else if (statusUpper.includes("REJEITAD")) {
+          statusNormalizado = "REJEITADO";
+        } else {
+          statusNormalizado = "PENDENTE";
+        }
 
         return {
           id: item.id,
           data: dataFormatada,
-          tipo: item.tipo,
+          tipo: item.tipo, // Assume que já vem correto (ex: Alimentação)
           valor: `R$ ${valorNum.toFixed(2).replace(".", ",")}`,
           valorNumerico: valorNum,
-          status: item.status.toUpperCase(),
+          status: statusNormalizado,
           comprovante: item.urlArquivo,
         };
       });
@@ -119,9 +135,10 @@ export default function ReembolsoPage() {
 
   useEffect(() => {
     fetchDespesas();
-  }, [token]); // Adicionado token como dependência caso mude
+  }, [token]);
 
   // --- CÁLCULOS (KPIs) ---
+  // Agora funcionará corretamente pois o status foi normalizado para "APROVADO"
   const totalAprovado = requests
     .filter((r) => r.status === "APROVADO")
     .reduce((acc, curr) => acc + curr.valorNumerico, 0);
@@ -139,9 +156,7 @@ export default function ReembolsoPage() {
     }
   };
 
-  // --- NOVA FUNÇÃO DE POST ---
   const handleNewRequest = async () => {
-    // 1. Validação
     if (!tipoDespesa || !valorInput) {
       toast.error("Preencha o tipo e o valor da despesa.");
       return;
@@ -155,19 +170,12 @@ export default function ReembolsoPage() {
     try {
       setIsSubmitting(true);
 
-      // 2. Preparar Dados
       const valorNumerico = parseFloat(valorInput.replace(",", "."));
-
-      // Capitalizar o tipo (ex: "alimentacao" -> "Alimentação" se necessário, ou enviar raw)
-      // Aqui estou enviando como o Select Value define (lowercase), ou formatado.
-      // Se o backend espera Capitalized:
       const tipoFormatado =
         tipoDespesa.charAt(0).toUpperCase() + tipoDespesa.slice(1);
 
-      // 3. Montar FormData
       const formData = new FormData();
 
-      // Campo 'data' contendo o JSON stringify conforme solicitado
       formData.append(
         "data",
         JSON.stringify({
@@ -176,18 +184,14 @@ export default function ReembolsoPage() {
         })
       );
 
-      // Campo 'file' contendo o arquivo binário
       formData.append("file", comprovante);
 
-      // 4. Enviar Request
       const response = await fetch(
         "http://localhost:3340/colaborador/despesas",
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
-            // IMPORTANTE: Não adicionar 'Content-Type': 'multipart/form-data'.
-            // O fetch faz isso automaticamente e define o 'boundary' correto.
           },
           body: formData,
         }
@@ -198,16 +202,13 @@ export default function ReembolsoPage() {
         throw new Error(errorData.message || "Erro ao salvar despesa");
       }
 
-      // 5. Sucesso
       toast.success("Solicitação enviada com sucesso!");
 
-      // Limpar formulário
       setTipoDespesa("");
       setValorInput("");
       setComprovante(null);
       setIsDialogOpen(false);
 
-      // Recarregar lista
       fetchDespesas();
     } catch (error) {
       console.error(error);
@@ -254,7 +255,6 @@ export default function ReembolsoPage() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Ajuste os values conforme o backend espera se necessário */}
                     <SelectItem value="Combustível">Combustível</SelectItem>
                     <SelectItem value="Alimentação">Alimentação</SelectItem>
                     <SelectItem value="Pedágio">Pedágio</SelectItem>
@@ -440,8 +440,7 @@ export default function ReembolsoPage() {
                           {req.status === "APROVADO" && (
                             <CheckCircle className="w-3 h-3 mr-1" />
                           )}
-                          {(req.status === "PENDENTE" ||
-                            req.status === "EM ANÁLISE") && (
+                          {req.status === "PENDENTE" && (
                             <Clock className="w-3 h-3 mr-1" />
                           )}
                           {req.status === "REJEITADO" && (

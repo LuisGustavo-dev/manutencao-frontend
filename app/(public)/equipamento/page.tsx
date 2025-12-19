@@ -372,7 +372,7 @@ function EquipamentoPage() {
                         onClick={() => openModal("corretiva")}
                       >
                         <Wrench className="mr-2 h-5 w-5" /> Iniciar Nova
-                        Manutenção Corretiva
+                        Manutenção Preventiva
                       </Button>
                     )}
                   </div>

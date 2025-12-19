@@ -35,24 +35,23 @@ import {
   isPast,
 } from "date-fns";
 
-interface VisitaAPI {
+// 1. ATUALIZADO: Adicionado equipamentoId na interface
+interface VisitaUI {
   id: number;
   atividade: string;
   dataMarcada: string;
-  status: string; // "Pendente" | "Iniciado"
+  status: string;
   empresa: string;
+  equipamentoId: number; // <--- Novo campo obrigatório
 }
 
 export default function AgendaPage() {
   const router = useRouter();
   const { token } = useAuth();
 
-  const [visitas, setVisitas] = useState<VisitaAPI[]>([]);
+  const [visitas, setVisitas] = useState<VisitaUI[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // State para controlar qual botão está carregando
   const [startingId, setStartingId] = useState<number | null>(null);
-
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -62,21 +61,30 @@ export default function AgendaPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        "http://localhost:3340/colaborador/visita-agendada/",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch("http://localhost:3340/chamado/", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       if (!response.ok) throw new Error("Erro ao buscar agenda");
 
       const data = await response.json();
-      setVisitas(Array.isArray(data) ? data : [data]);
+      const rawData = Array.isArray(data) ? data : [data];
+
+      // 2. ATUALIZADO: Mapeando equipamentoId da API para o State
+      const visitasFormatadas: VisitaUI[] = rawData.map((item: any) => ({
+        id: item.id,
+        atividade: item.tipo || "Manutenção",
+        empresa: item.name || "Cliente Desconhecido",
+        dataMarcada: item.dataMarcada,
+        status: item.status === "Aberto" ? "Pendente" : item.status,
+        equipamentoId: item.equipamentoId, // <--- Pegando do JSON
+      }));
+
+      setVisitas(visitasFormatadas);
     } catch (error) {
       console.error(error);
       toast.error("Não foi possível carregar sua agenda.");
@@ -89,32 +97,31 @@ export default function AgendaPage() {
     fetchAgenda();
   }, [token]);
 
-  // --- FILTRAGEM (NOVA LÓGICA) ---
+  // --- FILTRAGEM ---
   const visitasFiltradas = visitas
     .filter((visita) => {
+      if (!visita.dataMarcada) return false;
       const date = parseISO(visita.dataMarcada);
       if (!isValid(date)) return false;
 
-      // 1. É Hoje? (Mostra tudo de hoje: pendente, iniciado, finalizado)
       const ehHoje = isToday(date);
+      // Inclui passados pendentes e visitas em andamento
+      const ehPendenteOuAndamento =
+        (isPast(date) && visita.status === "Pendente") ||
+        visita.status === "Em andamento" ||
+        visita.status === "Iniciado";
 
-      // 2. É Passado Pendente? (Dias anteriores ou hoje mais cedo que ainda não iniciou)
-      const ehPassadoPendente = isPast(date) && visita.status === "Pendente";
-
-      // Retorna true se for HOJE ou se for um ATRASADO (ignora futuro e passado concluído)
-      return ehHoje || ehPassadoPendente;
+      return ehHoje || ehPendenteOuAndamento;
     })
     .sort((a, b) => {
-      // Ordena: Datas mais antigas aparecem primeiro (prioridade para atrasados)
       return (
         new Date(a.dataMarcada).getTime() - new Date(b.dataMarcada).getTime()
       );
     });
 
-  // --- LÓGICA DE STATUS ---
-  const getStatusInfo = (visita: VisitaAPI) => {
+  // --- HELPERS VISUAIS ---
+  const getStatusInfo = (visita: VisitaUI) => {
     const date = parseISO(visita.dataMarcada);
-
     if (!isValid(date))
       return {
         label: "-",
@@ -127,8 +134,7 @@ export default function AgendaPage() {
     const hora = format(date, "HH:mm");
     const diaMes = format(date, "dd/MM");
 
-    // 1. Iniciado
-    if (visita.status === "Iniciado") {
+    if (visita.status === "Iniciado" || visita.status === "Em andamento") {
       return {
         label: "ANDAMENTO",
         hora: hora,
@@ -137,8 +143,6 @@ export default function AgendaPage() {
         isUrgent: false,
       };
     }
-
-    // 2. Atrasado (Passado e Pendente)
     if (isPast(date) && visita.status === "Pendente") {
       return {
         label: "ATRASADO",
@@ -148,8 +152,6 @@ export default function AgendaPage() {
         isUrgent: true,
       };
     }
-
-    // 3. Hoje (Pendente)
     if (isToday(date)) {
       return {
         label: "HOJE",
@@ -159,18 +161,6 @@ export default function AgendaPage() {
         isUrgent: true,
       };
     }
-
-    // 4. Amanhã/Futuro (Embora filtrados, mantemos a lógica caso precise)
-    if (isTomorrow(date)) {
-      return {
-        label: "AMANHÃ",
-        hora: hora,
-        color: "blue",
-        statusText: "Visita agendada para amanhã",
-        isUrgent: false,
-      };
-    }
-
     return {
       label: diaMes,
       hora: hora,
@@ -206,19 +196,18 @@ export default function AgendaPage() {
     }
   };
 
-  const handleOpenDetails = (visita: VisitaAPI) => {
+  const handleOpenDetails = (visita: VisitaUI) => {
     const info = getStatusInfo(visita);
-    const eventDetails = {
+    setSelectedEvent({
       ...visita,
       infoDisplay: info,
       localDisplay: visita.empresa,
-    };
-    setSelectedEvent(eventDetails);
+    });
     setIsDetailsOpen(true);
   };
 
-  // --- AÇÃO: INICIAR SERVIÇO ---
-  const handleStartService = async (visita: VisitaAPI) => {
+  // --- 3. AÇÃO: INICIAR SERVIÇO ---
+  const handleStartService = async (visita: VisitaUI) => {
     if (!token) {
       toast.error("Erro de autenticação.");
       return;
@@ -227,10 +216,11 @@ export default function AgendaPage() {
     setStartingId(visita.id);
 
     try {
+      // Endpoint para alterar status do chamado
       const response = await fetch(
-        `http://localhost:3340/colaborador/visita-agendada/colaborador/${visita.id}`,
+        `http://localhost:3340/colaborador/visita-agendada`,
         {
-          method: "POST",
+          method: "POST", // ou PUT/PATCH dependendo da sua API
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -240,20 +230,17 @@ export default function AgendaPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        const errorMessage =
-          errorData?.message || "Erro ao iniciar visita (API).";
-        throw new Error(errorMessage);
+        throw new Error(errorData?.message || "Erro ao iniciar visita (API).");
       }
 
       toast.success(`Iniciando atendimento em ${visita.empresa}`);
-
       setIsDetailsOpen(false);
-      router.push("/dashboard/colaborador");
+
+      // REDIRECIONAMENTO COM O ID DO EQUIPAMENTO CORRETO
+      router.push(`/equipamento?id=${visita.equipamentoId}`);
     } catch (error: any) {
       console.error(error);
-      toast.error(
-        error.message || "Erro ao iniciar a visita. Tente novamente."
-      );
+      toast.error(error.message || "Erro ao iniciar a visita.");
     } finally {
       setStartingId(null);
     }
@@ -270,29 +257,24 @@ export default function AgendaPage() {
 
   return (
     <div className="mx-auto space-y-6 animate-in fade-in duration-500">
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <CalendarDays className="w-6 h-6 text-primary" /> Minha Agenda
         </h1>
-        <div className="flex gap-2">
-          {/* Contador baseado na lista filtrada */}
-          <Badge
-            variant="outline"
-            className="text-sm border-red-200 text-red-700 bg-red-50"
-          >
-            {
-              visitasFiltradas.filter((v) => {
-                const d = parseISO(v.dataMarcada);
-                return isPast(d) && v.status === "Pendente";
-              }).length
-            }{" "}
-            Atrasadas
-          </Badge>
-        </div>
+        <Badge
+          variant="outline"
+          className="text-sm border-red-200 text-red-700 bg-red-50"
+        >
+          {
+            visitasFiltradas.filter((v) => {
+              const d = parseISO(v.dataMarcada);
+              return isPast(d) && v.status === "Pendente";
+            }).length
+          }{" "}
+          Atrasadas
+        </Badge>
       </div>
 
-      {/* Lista de Cards (USANDO A LISTA FILTRADA) */}
       <div className="grid gap-4">
         {visitasFiltradas.length === 0 ? (
           <div className="text-center py-10 border-2 border-dashed rounded-lg text-muted-foreground">
@@ -312,7 +294,6 @@ export default function AgendaPage() {
               >
                 <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-start gap-4 flex-1">
-                    {/* Data/Hora Box */}
                     <div
                       className={`flex flex-col items-center justify-center min-w-[85px] rounded-lg p-2 border ${dateBoxStyle}`}
                     >
@@ -347,7 +328,10 @@ export default function AgendaPage() {
                         </Badge>
                         <Badge
                           variant={
-                            item.status === "Iniciado" ? "default" : "outline"
+                            item.status === "Iniciado" ||
+                            item.status === "Em andamento"
+                              ? "default"
+                              : "outline"
                           }
                           className="text-xs"
                         >
@@ -357,9 +341,8 @@ export default function AgendaPage() {
                     </div>
                   </div>
 
-                  {/* Botões de Ação */}
                   <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-                    {info.isUrgent ? (
+                    {info.isUrgent && (
                       <Button
                         disabled={isItemLoading}
                         className={`w-full md:w-auto gap-2 text-white shadow-sm ${
@@ -376,8 +359,7 @@ export default function AgendaPage() {
                         )}
                         {isItemLoading ? "Iniciando..." : "Iniciar"}
                       </Button>
-                    ) : null}
-
+                    )}
                     <Button
                       variant="secondary"
                       className="w-full md:w-auto gap-2"
@@ -394,7 +376,6 @@ export default function AgendaPage() {
         )}
       </div>
 
-      {/* --- MODAL DE DETALHES --- */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="sm:max-w-[600px]">
           {selectedEvent && (
@@ -434,7 +415,6 @@ export default function AgendaPage() {
                     </p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-muted/30 rounded border">
                     <span className="text-xs text-muted-foreground font-bold">
@@ -456,7 +436,6 @@ export default function AgendaPage() {
                     </p>
                   </div>
                 </div>
-
                 {selectedEvent.infoDisplay.color === "red" && (
                   <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 p-3 rounded border border-red-200">
                     <AlertCircle className="w-4 h-4 shrink-0" />
@@ -476,7 +455,6 @@ export default function AgendaPage() {
                 >
                   Fechar
                 </Button>
-
                 {selectedEvent.infoDisplay.isUrgent && (
                   <Button
                     disabled={startingId !== null}

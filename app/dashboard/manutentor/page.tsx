@@ -470,45 +470,26 @@ export default function PontoColaboradorPage() {
 
               {status === "DISPONIVEL" && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-2">
-                  <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-lg border border-dashed border-primary/30">
-                    <Label className="text-primary font-bold mb-4 block">
-                      Iniciar Novo Serviço
-                    </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-2">
-                        <Label>Cliente</Label>
-                        <Select
-                          value={clienteSelecionado}
-                          onValueChange={setClienteSelecionado}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {clientes.map((c) => (
-                              <SelectItem
-                                key={c.user_id}
-                                value={String(c.user_id)}
-                              >
-                                {c.user_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Atividade</Label>
-                        <Input
-                          placeholder="O que será feito?"
-                          value={atividadeInput}
-                          onChange={(e) => setAtividadeInput(e.target.value)}
-                        />
-                      </div>
+                  {/* Bloco Informativo de Ponto Batido */}
+                  <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-primary/30 text-center">
+                    <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full mb-3">
+                      <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <Button className="w-full" onClick={handleIniciarServico}>
-                      Começar Agora
-                    </Button>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                      Ponto Registrado com Sucesso
+                    </h3>
+                    <p className="text-muted-foreground mt-1">
+                      Você registrou sua entrada às{" "}
+                      <span className="font-mono font-bold text-primary text-lg">
+                        {horaEntrada ? format(horaEntrada, "HH:mm") : "--:--"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      O sistema está contabilizando suas horas.
+                    </p>
                   </div>
+
+                  {/* Botões de Ação (Almoço / Encerrar) */}
                   <div className="grid grid-cols-2 gap-4">
                     <Button
                       variant="outline"
@@ -522,7 +503,7 @@ export default function PontoColaboradorPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="h-20 border-red-200 hover:bg-red-50"
+                      className="h-20 border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20"
                       onClick={() =>
                         handleRegistrarPonto("ENCERRADO", "Saída do Trabalho")
                       }
