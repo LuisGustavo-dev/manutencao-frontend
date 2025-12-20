@@ -35,14 +35,14 @@ import {
   isPast,
 } from "date-fns";
 
-// 1. ATUALIZADO: Adicionado equipamentoId na interface
+// 1. Interface
 interface VisitaUI {
   id: number;
   atividade: string;
   dataMarcada: string;
   status: string;
   empresa: string;
-  equipamentoId: number; // <--- Novo campo obrigatório
+  equipamentoId: number;
 }
 
 export default function AgendaPage() {
@@ -74,14 +74,14 @@ export default function AgendaPage() {
       const data = await response.json();
       const rawData = Array.isArray(data) ? data : [data];
 
-      // 2. ATUALIZADO: Mapeando equipamentoId da API para o State
+      // 2. Mapeamento
       const visitasFormatadas: VisitaUI[] = rawData.map((item: any) => ({
         id: item.id,
         atividade: item.tipo || "Manutenção",
         empresa: item.name || "Cliente Desconhecido",
         dataMarcada: item.dataMarcada,
         status: item.status === "Aberto" ? "Pendente" : item.status,
-        equipamentoId: item.equipamentoId, // <--- Pegando do JSON
+        equipamentoId: item.equipamentoId,
       }));
 
       setVisitas(visitasFormatadas);
@@ -206,7 +206,7 @@ export default function AgendaPage() {
     setIsDetailsOpen(true);
   };
 
-  // --- 3. AÇÃO: INICIAR SERVIÇO ---
+  // --- 3. AÇÃO: INICIAR SERVIÇO (CORRIGIDO) ---
   const handleStartService = async (visita: VisitaUI) => {
     if (!token) {
       toast.error("Erro de autenticação.");
@@ -217,10 +217,11 @@ export default function AgendaPage() {
 
     try {
       // Endpoint para alterar status do chamado
+      // CORREÇÃO AQUI: Interpolando visita.id na URL
       const response = await fetch(
-        `http://localhost:3340/colaborador/visita-agendada`,
+        `http://localhost:3340/colaborador/visita-agendada/${visita.id}`,
         {
-          method: "POST", // ou PUT/PATCH dependendo da sua API
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -236,7 +237,7 @@ export default function AgendaPage() {
       toast.success(`Iniciando atendimento em ${visita.empresa}`);
       setIsDetailsOpen(false);
 
-      // REDIRECIONAMENTO COM O ID DO EQUIPAMENTO CORRETO
+      // Redirecionamento com ID do Equipamento
       router.push(`/equipamento?id=${visita.equipamentoId}`);
     } catch (error: any) {
       console.error(error);
